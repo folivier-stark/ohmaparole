@@ -41,6 +41,7 @@ const ASSETS = [
   "./js/audio/live-level.js",
   "./js/audio/player.js",
   "./js/audio/recorder.js",
+  "./js/audio/voice-measure.js",
   "./js/platform/haptics.js",
   "./js/platform/speech.js",
   "./js/platform/storage.js",

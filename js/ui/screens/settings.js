@@ -7,6 +7,7 @@ import { setHapticsEnabled } from '../../platform/haptics.js';
 import { storageStatus } from '../../platform/storage.js';
 import { APP_VERSION } from '../../version.js';
 import { createFox } from '../components/fox.js';
+import { scheduleReanalysis } from '../../audio/voice-measure.js';
 
 const section = (title, ...children) => h('section', {}, h('h2', {}, title), children);
 
@@ -44,6 +45,8 @@ export async function render(root, { repo, content }) {
         if (!confirm(`${p.data.sessions.length} séances et ${p.data.recordings.length} enregistrements : importer ?`)) return;
         const r = await importBackup(p);
         backupInfo.textContent = `Restauré : ${r.sessions} séances, ${r.recordings} enregistrements.`;
+        // Une sauvegarde v1 n'a pas de mesures de la voix : elles se recalculent depuis les Blobs.
+        scheduleReanalysis({ repo, syllables: content.reference.syllabes, delayMs: 0 });
       } catch (e) {
         backupInfo.textContent = e.message;
       }

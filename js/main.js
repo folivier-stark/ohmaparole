@@ -10,6 +10,7 @@ import * as session from './ui/screens/session.js';
 import * as end from './ui/screens/end.js';
 import * as progress from './ui/screens/progress.js';
 import * as settings from './ui/screens/settings.js';
+import { scheduleReanalysis } from './audio/voice-measure.js';
 
 const inSession = () => location.hash.startsWith('#/session');
 
@@ -40,6 +41,8 @@ async function boot() {
   }
   startRouter();
   if (await repo.getMeta('persistAsked', false)) requestPersist();
+  // Mesures de la voix manquantes ou d'un ancien algorithme : recalculées depuis les Blobs, en arrière-plan.
+  scheduleReanalysis({ repo, syllables: content.reference.syllabes });
 }
 
 boot().catch((err) => {
