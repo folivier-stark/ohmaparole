@@ -1,0 +1,126 @@
+/* Louarn, le renard qui grandit : couleurs, bulle, célébrations et Parcours
+   (spec V2 §1-2, docs/experts/expert-gamification.md §1.4, §2, §4.2-4.4, §5).
+
+   À LIER APRÈS css/app.css, dont il réutilise les tokens (--bg, --surface, --text, --text-2,
+   --primary, --border, --font-title, --font-body) :
+     <link rel="stylesheet" href="css/app.css">
+     <link rel="stylesheet" href="css/louarn.css">
+
+   Toutes les classes sont préfixées lo-. Les SVG du renard embarquent un <style> qui s'applique à
+   toute la page : les classes lo-b lo-l lo-d lo-s lo-n lo-c lo-w lo-e lo-ombre sont RÉSERVÉES aux
+   dessins, ne pas les réutiliser ailleurs.
+   Animations : une seule fois, 1 s au plus, jamais sur l'accueil ; aucune sous prefers-reduced-motion. */
+
+:root {
+  /* Le renard (G §1.4). L'écharpe (currentColor) reste Iroise dans les deux modes. */
+  --fox-body: #C25A24; --fox-light: #FFF4E4; --fox-dark: #1F2A30; --fox-scarf: #1D5C6B;
+  /* Les 3 blocs du sentier (G §4.2) : Iroise, Ajonc cerné de granite, Bruyère. */
+  --lo-bloc-1: #1D5C6B; --lo-bloc-2: #E3A72F; --lo-bloc-3: #7A4A7E;
+  --lo-cerne-2: #1F2A30;
+  /* Coche sur une pierre faite : sur l'ajonc clair, le blanc ne se lirait pas (même logique que --on-accent). */
+  --lo-sur-1: #FFFFFF; --lo-sur-2: #1F2A30; --lo-sur-3: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fox-body: #D9733A; --fox-light: #FBEBD6; --fox-dark: #1F2A30; --fox-scarf: #1D5C6B;
+    --lo-bloc-1: #5FB3C4; --lo-bloc-2: #F0BC4E; --lo-bloc-3: #C79BD0;
+    --lo-cerne-2: #F0BC4E;
+    --lo-sur-1: #12191D; --lo-sur-2: #12191D; --lo-sur-3: #12191D;
+  }
+}
+
+.lo-fox { display: block; flex: none; overflow: visible; }
+.lo-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── Bulle (G §5.1) : une ligne, à la place d'un texte existant, jamais un bouton ── */
+.lo-bulle-wrap { display: flex; align-items: center; gap: 14px; margin: 24px 0 8px; }
+.lo-bulle-colonne { flex-direction: column; gap: 12px; text-align: center; }
+.lo-bulle { position: relative; flex: 1; margin: 0; padding: 12px 16px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px; font: 18px/1.45 var(--font-body); font-style: normal; }
+.lo-bulle::before { content: ''; position: absolute; left: -8px; top: 50%; width: 14px; height: 14px; background: var(--surface); border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); transform: translateY(-50%) rotate(45deg); }
+.lo-bulle-colonne .lo-bulle { flex: none; width: 100%; }
+.lo-bulle-colonne .lo-bulle::before { left: 50%; top: -8px; transform: translateX(-50%) rotate(135deg); }
+
+/* ── Célébrations (G §4.4) ── */
+/* Fin de séance : petit saut de 6 px à 300 ms, 0,8 s au total. */
+.lo-saut { animation: lo-saut .5s cubic-bezier(.22, .61, .36, 1) .3s 1 both; }
+@keyframes lo-saut { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-6px); } }
+
+/* Montée de stade : l'ancien grandit (origine en bas au centre, 600 ms) et se fond dans le nouveau (300 ms). 0,65 s. */
+.lo-montee { position: relative; margin: 0 auto; }
+.lo-montee > .lo-fox { position: absolute; inset: 0; }
+.lo-montee-avant { transform-origin: 50% 100%; animation: lo-grandit .6s ease-out 1 both, lo-efface .3s ease-in .35s 1 both; }
+.lo-montee-apres { animation: lo-revele .3s ease-out .35s 1 both; }
+@keyframes lo-grandit { from { transform: scale(1); } to { transform: scale(1.12); } }
+@keyframes lo-efface { from { opacity: 1; } to { opacity: 0; } }
+@keyframes lo-revele { from { opacity: 0; } to { opacity: 1; } }
+
+/* Souvenir obtenu : la pastille apparaît, 0,3 s. */
+.lo-apparait { animation: lo-apparait .3s ease-out 1 both; }
+@keyframes lo-apparait { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+
+/* Thème débloqué (mini-sentier) : la coche se dessine (400 ms), puis le portrait glisse (500 ms). 0,9 s. */
+.lo-coche { width: 18px; height: 18px; }
+.lo-coche path { fill: none; stroke: var(--lo-sur, #FFFFFF); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.lo-coche-trace path { animation: lo-trace .4s ease-out 1 both; }
+@keyframes lo-trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.lo-glisse { animation: lo-glisse .5s ease-in-out .4s 1 both; }
+@keyframes lo-glisse { from { transform: translateX(-120%); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-saut, .lo-montee-avant, .lo-montee-apres, .lo-apparait, .lo-glisse, .lo-coche-trace path { animation: none !important; }
+  .lo-montee-avant { display: none; }
+}
+
+/* ── Parcours (G §4.2, maquette §5.2) ── */
+.lo-teinte-1 { --lo-teinte: var(--lo-bloc-1); --lo-sur: var(--lo-sur-1); }
+.lo-teinte-2 { --lo-teinte: var(--lo-bloc-2); --lo-sur: var(--lo-sur-2); }
+.lo-teinte-3 { --lo-teinte: var(--lo-bloc-3); --lo-sur: var(--lo-sur-3); }
+
+.lo-parcours { margin: 8px 0 16px; }
+.lo-parcours-tete { display: flex; align-items: flex-end; gap: 20px; }
+.lo-stade-actuel, .lo-stade-suivant { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.lo-stade-nom { font: 600 20px/1.25 var(--font-title); text-align: center; }
+.lo-stade-suivant { flex-direction: row; align-items: center; gap: 10px; color: var(--text-2); font-size: 16px; line-height: 1.35; }
+.lo-stade-suivant figcaption { max-width: 9em; }
+.lo-fini { margin: 0 0 24px; color: var(--text-2); }
+.lo-compte { font: 600 22px var(--font-title); margin: 16px 0 4px; }
+.lo-cycle { display: inline-block; margin: 8px 0 0; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 15px; color: var(--text-2); }
+
+.lo-sentier { margin: 4px 0 8px; }
+.lo-bloc-nom { display: flex; align-items: center; gap: 10px; margin: 18px 0 6px; font: 600 15px var(--font-title); color: var(--text-2); }
+.lo-bloc-nom::after { content: ''; flex: 1; border-top: 3px solid var(--lo-teinte); border-radius: 2px; }
+.lo-pierres { list-style: none; margin: 0; padding: 0; }
+/* Lacets : une pierre sur deux décalée. */
+.lo-pierre { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.lo-pierres > .lo-pierre:nth-child(even) { margin-left: 40px; }
+.lo-pierre-marque { position: relative; z-index: 1; flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0 6px; border-radius: 50%; background: var(--bg); }
+.lo-pierre-faite .lo-pierre-marque { background: var(--lo-teinte); }
+.lo-pierre-actuelle .lo-pierre-marque { width: 40px; height: 40px; margin: 0; border: 4px solid var(--lo-teinte); background: var(--surface); }
+.lo-pierre-prochaine .lo-pierre-marque { border: 2px solid var(--lo-teinte); }
+.lo-pierre-plus-tard .lo-pierre-marque { width: 12px; height: 12px; margin: 0 14px; background: var(--border); }
+/* L'ajonc seul ne fait que 1,9:1 sur le sable : liseré granite, comme le losange du calendrier. */
+.lo-pierre.lo-teinte-2:not(.lo-pierre-plus-tard) > .lo-pierre-marque { box-shadow: 0 0 0 1.5px var(--lo-cerne-2); }
+/* Les pierres « plus tard » restent discrètes : pas de nom, peu de place. */
+.lo-pierre-plus-tard { min-height: 24px; }
+.lo-pierre-marque .lo-portrait { position: absolute; }
+.lo-pierre-faite .lo-pierre-nom { font-size: 15px; color: var(--text-2); }
+.lo-pierre-actuelle .lo-pierre-nom { font-weight: 700; }
+.lo-etapes { display: inline-flex; gap: 4px; margin-left: 10px; vertical-align: middle; }
+.lo-etape { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--lo-teinte); }
+.lo-etape-faite { background: var(--lo-teinte); }
+
+/* Souvenirs : seulement ceux obtenus, jamais de case vide (G §4.3). */
+.lo-souvenirs-titre { font: 600 19px var(--font-title); margin: 24px 0 6px; }
+.lo-souvenirs-liste { list-style: none; margin: 0; padding: 0; }
+.lo-souvenir { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.lo-souvenir-nom { font-weight: 700; }
+.lo-souvenir-legende { display: block; font-size: 15px; color: var(--text-2); }
+
+/* Mini-sentier de l'écran de fin (G §5.3) : 3 pierres en ligne, reliées par un trait. */
+.lo-mini { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); margin: 12px 0; padding: 0; text-align: center; }
+.lo-mini .lo-pierre { position: relative; flex-direction: column; justify-content: flex-start; gap: 6px; font-size: 15px; }
+.lo-mini .lo-pierre + .lo-pierre::before { content: ''; position: absolute; top: 20px; right: 50%; width: 100%; border-top: 2px solid var(--border); }
+.lo-mini .lo-pierre-marque { margin: 6px 0; }
+.lo-mini .lo-pierre-actuelle .lo-pierre-marque { margin: 0; }
+.lo-mini .lo-pierre-plus-tard .lo-pierre-marque { margin: 14px 0; }
+.lo-mini .lo-etapes { display: none; }
