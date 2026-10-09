@@ -6,7 +6,8 @@ import { programGoal, cumulativeSeries, goalProgress, axisSummary, rateTrend, mo
 import { RDV_QUESTIONS, DONT_KNOW, rdvBoard } from '../../core/rdv.js';
 import { BLOCKS, plural, trendText, frequencyText } from '../../core/texts.js';
 import { createCompare } from '../components/compare.js';
-import { cumulativeChart, monthlyPoints, shortDayMonth } from '../components/chart.js';
+import { cumulativeChart, monthlyPoints, shortDayMonth, noiseBand } from '../components/chart.js';
+import { voiceReport, voiceSummary } from '../../core/voice-report.js';
 import { souvenirs } from '../../core/louarn.js';
 import { createParcours } from '../components/parcours.js';
 
@@ -21,13 +22,37 @@ const SUITE = Object.fromEntries([...RDV_QUESTIONS.suite.options, DONT_KNOW].map
 /** « Prises « Clair » : environ 6 sur 10 (entre 4 et 8) » : jamais de pourcentage, toujours la fourchette. */
 const freqLine = (freq, measure) => h('p', {}, `${measure} : `, h('strong', {}, frequencyText(freq)));
 
-function axisCard(sessions, today, a) {
+/**
+ * Diction mesurée (spec V2 §4, eval-diction.md §4) : au-dessus du taux « Clair », qui reste. Uniquement les
+ * phrases de voiceSummary et la bande grise : jamais de score, de « bredouillement » ni d'« intelligible ».
+ */
+function voiceSection(measures, untilControl) {
+  const sum = voiceSummary(voiceReport(measures), { untilControl });
+  const band = (metric) => {
+    const b = sum.bands.find((x) => x.metric === metric);
+    return b ? noiseBand(b) : null;
+  };
+  const isPause = (l) => l.startsWith('Tu t’arrêtes');
+  return [h('div', { class: 'voice-measure' },
+    h('p', { class: 'label' }, 'Ta voix mesurée'),
+    h('p', { class: 'trend' }, sum.headline),
+    sum.verdict ? h('p', {}, sum.verdict) : null,
+    band('debit'),
+    sum.lines.map((l) => [h('p', {}, l), isPause(l) ? band('pausePct') : null]),
+    h('p', { class: 'muted small' }, sum.state === 'calibrage'
+      ? 'Une mesure, c’est 3 lectures du texte de référence au début d’une séance, sur 3 jours différents.'
+      : 'Mesuré sur ton téléphone, à partir de tes lectures du texte de référence. Zone grise : ta variation normale.')),
+  h('p', { class: 'label' }, 'Ton ressenti')];
+}
+
+function axisCard(sessions, today, a, top = null) {
   const sum = axisSummary(sessions, a.key, today);
   const state = rateTrend(sessions, a.key, today);
   const blocks = monthlyBlocks(sessions, a.key, today);
   return h('div', { class: 'card axis' },
     h('h3', {}, a.title),
     h('p', { class: 'muted small' }, a.tagline),
+    top,
     sum.total
       ? [
         sum.freq ? freqLine(sum.freq, a.measure) : h('p', {}, 'Pas de réponse ces 4 dernières semaines.'),
@@ -84,7 +109,7 @@ function rdvCard(sessions, today) {
 export async function render(root, { repo, content }) {
   const today = dayKey(Date.now());
   const [y, m] = today.split('-').map(Number);
-  const [sessions, recordings] = await Promise.all([repo.listSessions(), repo.listRecordings()]);
+  const [sessions, recordings, measures] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
   const daily = dailyCount(sessions);
   const total = totalCount(sessions);
   const monthDays = monthCount(sessions, y, m);
@@ -109,7 +134,8 @@ export async function render(root, { repo, content }) {
     series.length ? cumulativeChart(series, g.goal) : null);
 
   // Axes de progrès
-  const axisCards = [...AXIS_CARDS.map((a) => axisCard(sessions, today, a)), rdvCard(sessions, today)];
+  const voiceTop = voiceSection(measures, sessionsUntilControl(recordings, daily));
+  const axisCards = [...AXIS_CARDS.map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null)), rdvCard(sessions, today)];
 
   // Calendrier du mois
   const cal = h('div', { class: 'cal' },

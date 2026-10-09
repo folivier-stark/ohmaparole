@@ -154,3 +154,12 @@ textarea.field { min-height: 96px; resize: vertical; }
 .chart-goal { stroke: var(--accent-text); stroke-width: 2; stroke-dasharray: 6 5; }
 .chart-axis { stroke: var(--border); stroke-width: 1; }
 .chart-label { fill: var(--text-2); font-family: var(--font-body); font-size: 11px; }
+/* Bande de la zone de bruit (voix mesurée) : gris neutre, jamais de rouge ni de flèche. */
+.band-zone { fill: var(--text-2); opacity: .2; }
+.band-base { stroke: var(--text-2); stroke-width: 2; }
+.band-range { stroke: var(--text); stroke-width: 5; stroke-linecap: round; opacity: .3; }
+.band-mark { stroke: var(--text); stroke-width: 3; stroke-linecap: round; }
+.voice-measure { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+.voice-measure p { margin: 6px 0; }
+.voice-hush { font: 600 24px var(--font-title); text-align: center; margin: 32px 0; }
+.voice-refus { font-weight: 700; }

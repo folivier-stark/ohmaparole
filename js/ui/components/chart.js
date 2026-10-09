@@ -73,3 +73,45 @@ export function monthlyPoints(blocks) {
     ];
   }));
 }
+
+/**
+ * Bande de la zone de bruit (eval-methodologie.md §4.3) pour une mesure de la voix : la zone grisée est le
+ * départ ± MDC95 (ta variation normale), le trait est la position au dernier contrôle, avec sa zone probable
+ * à 80 %. Trait hors du gris : changement réel ; dedans : du bruit. Pas de flèche, pas de rouge, couleurs
+ * neutres. band : voiceSummary().bands[i] (unit 'syll/s' ou '%', pausePct en fraction).
+ */
+export function noiseBand(band) {
+  const H = 76;
+  const pad = 14;
+  const { base, mdc, current, unit } = band;
+  // Une part du temps reste entre 0 et 100 % : la zone et le trait sont bornés (jamais « -1 % »).
+  const clamp = unit === '%' ? (v) => Math.min(1, Math.max(0, v)) : (v) => v;
+  const zoneLo = clamp(base - mdc);
+  const zoneHi = clamp(base + mdc);
+  const low80 = clamp(band.low80);
+  const high80 = clamp(band.high80);
+  const fmt = unit === '%'
+    ? (v) => `${Math.round(v * 100)} %`
+    : (v) => `${(Math.round(v * 10) / 10).toFixed(1).replace('.', ',')}`;
+  let lo = Math.min(zoneLo, low80, current);
+  let hi = Math.max(zoneHi, high80, current);
+  const margin = (hi - lo) * 0.08 || 1;
+  lo -= margin;
+  hi += margin;
+  const x = (v) => pad + ((v - lo) / (hi - lo)) * (W - 2 * pad);
+  const anchor = (px) => (px < 60 ? 'start' : px > W - 60 ? 'end' : 'middle');
+  const yAxis = 38;
+  const xb = x(base);
+  const xc = x(current);
+  return svg('svg', {
+    viewBox: `0 0 ${W} ${H}`, class: 'chart band', role: 'img',
+    'aria-label': `${band.label} : au départ ${fmt(base)}, zone de bruit de ${fmt(zoneLo)} à ${fmt(zoneHi)}, au dernier contrôle ${fmt(current)}`,
+  },
+  svg('line', { x1: pad, x2: W - pad, y1: yAxis, y2: yAxis, class: 'chart-axis' }),
+  svg('rect', { x: x(zoneLo), y: yAxis - 12, width: Math.max(1, x(zoneHi) - x(zoneLo)), height: 24, rx: 4, class: 'band-zone' }),
+  svg('line', { x1: xb, x2: xb, y1: yAxis - 14, y2: yAxis + 14, class: 'band-base' }),
+  svg('text', { x: xb, y: 14, 'text-anchor': anchor(xb), class: 'chart-label' }, `départ ${fmt(base)}`),
+  svg('line', { x1: x(low80), x2: x(high80), y1: yAxis, y2: yAxis, class: 'band-range' }),
+  svg('line', { x1: xc, x2: xc, y1: yAxis - 10, y2: yAxis + 10, class: 'band-mark' }),
+  svg('text', { x: xc, y: H - 6, 'text-anchor': anchor(xc), class: 'chart-label' }, `dernier contrôle ${fmt(current)}`));
+}
