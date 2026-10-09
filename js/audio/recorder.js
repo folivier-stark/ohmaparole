@@ -25,12 +25,15 @@ export async function startRecording() {
     stop() {
       if (stopped) return Promise.resolve(null);
       stopped = true;
+      const result = () => {
+        release();
+        const blob = new Blob(chunks, { type: rec.mimeType || mimeType || 'audio/webm' });
+        return { blob, mimeType: blob.type, durationMs: Math.round(performance.now() - startedAt) };
+      };
+      // Déjà arrêté (micro coupé par le système, page en arrière-plan) : onstop ne viendra plus.
+      if (rec.state === 'inactive') return Promise.resolve(result());
       return new Promise((resolve) => {
-        rec.onstop = () => {
-          release();
-          const blob = new Blob(chunks, { type: rec.mimeType || mimeType || 'audio/webm' });
-          resolve({ blob, mimeType: blob.type, durationMs: Math.round(performance.now() - startedAt) });
-        };
+        rec.onstop = () => resolve(result());
         rec.stop();
       });
     },

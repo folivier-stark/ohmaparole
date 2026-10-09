@@ -15,7 +15,7 @@ function frenchVoice() {
     ?? null;
 }
 
-export function speak(text, { onEnd } = {}) {
+export function speak(text, { onEnd, onError } = {}) {
   if (!text || !canSpeak()) {
     onEnd?.();
     return;
@@ -27,7 +27,11 @@ export function speak(text, { onEnd } = {}) {
   if (v) u.voice = v;
   u.rate = 0.95;
   u.onend = () => onEnd?.();
-  u.onerror = () => onEnd?.();
+  // Un cancel() (pause, pas suivant) déclenche une erreur « interrupted » : ce n'est pas une fin.
+  u.onerror = (e) => {
+    if (e.error === 'interrupted' || e.error === 'canceled') return;
+    (onError ?? onEnd)?.(e);
+  };
   speechSynthesis.speak(u);
 }
 

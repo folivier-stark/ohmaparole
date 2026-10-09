@@ -2,7 +2,7 @@ import { h } from '../dom.js';
 import { dayKey } from '../../core/dates.js';
 import { buildDailyPlan, buildRdvPlan } from '../../core/planner.js';
 import {
-  createRun, tick, next, pause, resume, skipBlock, stop, currentStep,
+  createRun, tick, next, pause, resume, skipBlock, stop, restartStep, currentStep,
   remainingMs, practicedMs, isCounted, pausedForMs,
 } from '../../core/session-engine.js';
 import {
@@ -67,6 +67,8 @@ export async function render(root, { repo, content, navigate, params }) {
   const stage = h('section', { class: 'stage' });
   const overlay = h('div', { class: 'overlay', hidden: true });
   const blocks = [...new Set(plan.steps.map((s) => s.block))];
+  // append() du DOM écrirait « null » en texte : on filtre les nœuds absents.
+  const add = (...nodes) => stage.append(...nodes.filter((n) => n != null));
 
   const showOverlay = (...nodes) => { overlay.replaceChildren(h('div', { class: 'overlay-box' }, nodes)); overlay.hidden = false; };
   const hideOverlay = () => { overlay.hidden = true; };
@@ -85,24 +87,29 @@ export async function render(root, { repo, content, navigate, params }) {
     takeStarting = startRecording().catch(() => null);
   }
 
-  function endTake() {
+  /** partial : prise interrompue par une pause, gardée mais jamais prise pour un jalon. */
+  function endTake({ partial = false } = {}) {
     const starting = takeStarting;
     const st = takeStep;
     takeStarting = null;
     if (!starting) return;
     lastTake = (async () => {
-      const rec = await starting;
-      if (!rec) return null;
-      const res = await rec.stop();
-      if (!res || !res.blob.size) return null;
-      const meta = {
-        id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: st.recordKind,
-        milestone: st.milestone ?? null, itemId: st.itemId, sessionId: record.id,
-        mimeType: res.mimeType, durationMs: res.durationMs, sizeBytes: res.blob.size,
-      };
-      await repo.saveRecording(meta, res.blob);
-      record.recordingIds.push(meta.id);
-      return { meta, blob: res.blob };
+      try {
+        const rec = await starting;
+        if (!rec) return null;
+        const res = await rec.stop();
+        if (!res || !res.blob.size) return null;
+        const meta = {
+          id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: partial ? 'partial' : st.recordKind,
+          milestone: st.milestone ?? null, itemId: st.itemId, sessionId: record.id,
+          mimeType: res.mimeType, durationMs: res.durationMs, sizeBytes: res.blob.size,
+        };
+        await repo.saveRecording(meta, res.blob);
+        record.recordingIds.push(meta.id);
+        return { meta, blob: res.blob };
+      } catch {
+        return null;
+      }
     })();
   }
 
@@ -130,16 +137,16 @@ export async function render(root, { repo, content, navigate, params }) {
       case 'slow':
       case 'reformulate':
       case 'consigne':
-        stage.append(title, lines, text);
+        add(title, lines, text);
         speak(st.speak);
         break;
       case 'breathe':
-        stage.append(title, h('div', { class: 'breath' }), lines);
+        add(title, h('div', { class: 'breath' }), lines);
         speak(st.speak);
         break;
       case 'record':
         stopSpeaking();
-        stage.append(
+        add(
           h('p', { class: 'rec' }, h('span', { class: 'rec-dot' }), 'J’enregistre'),
           lines, text,
           h('button', { class: 'btn-secondary', onclick: advance }, 'J’ai fini'));
@@ -148,7 +155,7 @@ export async function render(root, { repo, content, navigate, params }) {
         break;
       case 'replay': {
         const status = h('p', { class: 'muted' }, 'Réécoute…');
-        stage.append(title, lines, status);
+        add(title, lines, status);
         lastTake.then((take) => {
           if (run.index !== myIndex) return;
           if (!take) { status.textContent = 'Pas d’enregistrement cette fois. Redis la phrase une fois, tranquillement.'; return; }
@@ -157,7 +164,7 @@ export async function render(root, { repo, content, navigate, params }) {
           status.after(h('button', { class: 'btn-secondary', onclick: () => player.play(take.blob) }, '▶ Réécouter'));
         });
         if (st.rate) {
-          stage.append(rating('Ta prise ?', [['clair', 'Clair'], ['moyen', 'Moyen'], ['brouillon', 'Brouillon']], (v) => {
+          add(rating('Ta prise ?', [['clair', 'Clair'], ['moyen', 'Moyen'], ['brouillon', 'Brouillon']], (v) => {
             record.ratings[st.itemId] = v;
             advance();
           }));
@@ -165,19 +172,28 @@ export async function render(root, { repo, content, navigate, params }) {
         break;
       }
       case 'listen':
-        stage.append(title, lines);
+        add(title, lines);
         if (canSpeak()) {
-          stage.append(h('p', { class: 'muted' }, 'Le téléphone lit. Le texte reste caché.'));
-          speak(st.passage, { onEnd: advance });
+          add(h('p', { class: 'muted' }, 'Le téléphone lit. Le texte reste caché.'));
+          speak(st.passage, {
+            onEnd: advance,
+            // La voix a échoué : on montre le passage, à lire une fois, si l'on est toujours sur ce pas.
+            onError: () => {
+              if (finished || run.index !== myIndex) return;
+              add(
+                h('p', { class: 'say small' }, st.passage),
+                h('button', { class: 'btn-secondary', onclick: advance }, 'Suivant'));
+            },
+          });
         } else {
-          stage.append(
+          add(
             h('p', { class: 'muted' }, 'Lis une seule fois. Le texte disparaît ensuite.'),
             h('p', { class: 'say small' }, st.passage),
             h('button', { class: 'btn-secondary', onclick: advance }, 'Suivant'));
         }
         break;
       case 'reveal':
-        stage.append(
+        add(
           title,
           h('p', { class: 'label' }, 'Reformulation de référence'),
           h('p', { class: 'say small' }, st.reformulation),
@@ -187,14 +203,14 @@ export async function render(root, { repo, content, navigate, params }) {
         break;
       case 'objective':
         goalInput = h('input', { class: 'field', type: 'text', placeholder: 'À la fin de ce rendez-vous, je veux…', value: record.goal });
-        stage.append(
+        add(
           title, goalInput,
           h('div', { class: 'chips' }, content.extras.objectifsRdv.map((x) => h('button', { class: 'chip', onclick: () => { goalInput.value = x; } }, x))),
           h('button', { class: 'btn-secondary', onclick: advance }, 'Valider'));
         speak(st.speak);
         break;
       default:
-        stage.append(title, lines, text);
+        add(title, lines, text);
     }
   }
 
@@ -225,10 +241,17 @@ export async function render(root, { repo, content, navigate, params }) {
 
   function loop() {
     if (!run || finished) return;
-    apply(tick(run, Date.now()));
+    const now = Date.now();
+    // Pause oubliée plus de 30 min : la séance se ferme seule, avec le temps déjà pratiqué.
+    if (run.status === 'paused' && pausedForMs(run, now) > AUTO_CLOSE_MS) {
+      stoppedEarly = true;
+      apply(stop(run, now));
+      return;
+    }
+    apply(tick(run, now));
     if (finished) return;
     const st = currentStep(run);
-    timer.update(remainingMs(run, Date.now()), st.durationSec * 1000);
+    if (st) timer.update(remainingMs(run, now), st.durationSec * 1000);
   }
 
   async function finish() {
@@ -238,17 +261,20 @@ export async function render(root, { repo, content, navigate, params }) {
     hideOverlay();
     if (shownIndex >= 0 && shownIndex < plan.steps.length) exitStep(plan.steps[shownIndex]);
     releaseAwake();
-    await lastTake;
+    // Une prise ou une sauvegarde ratée ne doit jamais bloquer l'écran de fin.
+    try { await lastTake; } catch (e) { console.error(e); }
     record.completed = !stoppedEarly;
-    await save();
+    try { await save(); } catch (e) { console.error(e); }
     buzz('end');
-    if (record.counted && !(await repo.getMeta('persistAsked', false))) {
-      await repo.setMeta('persistAsked', true);
-      requestPersist();
-    }
+    try {
+      if (record.counted && !(await repo.getMeta('persistAsked', false))) {
+        await repo.setMeta('persistAsked', true);
+        requestPersist();
+      }
+    } catch (e) { console.error(e); }
     if (plan.type === 'prerdv') showRdvEnd();
-    else if (record.counted) navigate(`/end/${record.id}`);
-    else navigate('/home');
+    else if (record.counted) navigate(`/end/${record.id}`, { replace: true });
+    else navigate('/home', { replace: true });
   }
 
   function showRdvEnd() {
@@ -257,12 +283,12 @@ export async function render(root, { repo, content, navigate, params }) {
       record.goal ? h('p', { class: 'say small' }, record.goal) : null,
       why ? h('p', { class: 'why' }, `« ${why} »`) : null,
       h('p', { class: 'muted' }, 'Je suis là pour comprendre, pas pour convaincre.'),
-      h('button', { class: 'btn btn-rdv', onclick: () => navigate('/home') }, 'J’y vais')));
+      h('button', { class: 'btn btn-rdv', onclick: () => navigate('/home', { replace: true }) }, 'J’y vais')));
   }
 
   function onPaused() {
     const st = currentStep(run);
-    if (st?.kind === 'record') endTake();
+    if (st?.kind === 'record') endTake({ partial: true });
     stopSpeaking();
     player.stop();
   }
@@ -270,10 +296,15 @@ export async function render(root, { repo, content, navigate, params }) {
   function doResume() {
     hideOverlay();
     const now = Date.now();
-    if (pausedForMs(run, now) > AUTO_CLOSE_MS) { apply(stop(run, now)); return; }
+    if (pausedForMs(run, now) > AUTO_CLOSE_MS) { stoppedEarly = true; apply(stop(run, now)); return; }
+    keepAwake();
     apply(resume(run, now));
     const st = currentStep(run);
-    if (st && (st.kind === 'listen' || st.kind === 'record')) enterStep(st);
+    // Prise ou passage interrompus : le pas repart à zéro (prise complète, passage relu en entier).
+    if (st && (st.kind === 'listen' || st.kind === 'record')) {
+      run = restartStep(run, now);
+      enterStep(st);
+    }
   }
 
   function stopNow() {
@@ -293,10 +324,11 @@ export async function render(root, { repo, content, navigate, params }) {
     if (!run || run.status !== 'running') return;
     apply(pause(run, Date.now()));
     onPaused();
+    releaseAwake();
     showOverlay(
       h('p', { class: 'overlay-title' }, title),
       h('button', { class: 'btn btn-go', onclick: doResume }, 'Reprendre'),
-      h('button', { class: 'btn-secondary', onclick: () => { hideOverlay(); const now = Date.now(); apply(skipBlock(resume(run, now), now)); } }, 'Passer ce bloc'),
+      h('button', { class: 'btn-secondary', onclick: () => { hideOverlay(); keepAwake(); const now = Date.now(); apply(skipBlock(resume(run, now), now)); } }, 'Passer ce bloc'),
       h('button', { class: 'btn-link', onclick: askStop }, 'J’arrête là'));
   }
 
@@ -319,20 +351,26 @@ export async function render(root, { repo, content, navigate, params }) {
   }
 
   // Écran « Prêt ? » : compte à rebours 3-2-1, ou un tap pour démarrer tout de suite.
+  // Lancée par un raccourci, sans aucun geste, la page n'a droit ni aux vibrations ni à la voix :
+  // on attend alors le tap au lieu de compter.
   const showWhy = kind === 'daily' && why && plan.sessionNumber % 3 === 0;
+  const needsTap = Boolean(navigator.userActivation && !navigator.userActivation.hasBeenActive);
   let count = 3;
-  const num = h('p', { class: 'ready-count' }, '3');
+  const num = needsTap ? null : h('p', { class: 'ready-count' }, '3');
   root.replaceChildren(h('div', { class: 'ready', onclick: start },
     h('p', { class: 'ready-title' }, 'Prêt ?'),
     showWhy ? h('p', { class: 'why' }, `« ${why} »`) : null,
     num,
-    h('p', { class: 'muted' }, 'Touche l’écran pour démarrer tout de suite.')));
-  buzz('count');
-  countdown = setInterval(() => {
-    count -= 1;
-    if (count <= 0) start();
-    else { num.textContent = String(count); buzz('count'); }
-  }, 1000);
+    h('p', { class: 'muted' }, needsTap ? 'Touche l’écran pour commencer.' : 'Touche l’écran pour démarrer tout de suite.')));
+  if (!needsTap) {
+    buzz('count');
+    countdown = setInterval(() => {
+      if (document.hidden) return;
+      count -= 1;
+      if (count <= 0) start();
+      else { num.textContent = String(count); buzz('count'); }
+    }, 1000);
+  }
 
   return () => {
     clearInterval(countdown);
