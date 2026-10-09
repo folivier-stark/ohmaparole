@@ -1,4 +1,4 @@
-const VERSION = '2026.10.09-0000';
+const VERSION = '2026.10.09-155750';
 const CACHE = `ohmaparole-${VERSION}`;
 const FONT_CACHE = 'ohmaparole-fonts';
 const ASSETS = [
