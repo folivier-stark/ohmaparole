@@ -74,6 +74,23 @@
 
   On ne dit jamais « bredouillement », jamais « intelligible à X % ».
 
+### 4.1 Choix de mise en œuvre (phase 3b)
+
+- **Calendrier** (`js/core/voice-plan.js`, il remplace `dueMilestone` et `referenceSteps`) :
+  - calibration tant qu'il y a **moins de 3 séances de calibration valides** ; une séance est valide avec **au moins 2 prises valides** ;
+  - contrôle ensuite **toutes les 6 séances comptées** depuis la dernière mesure de voix valide ; un contrôle refusé reste dû ;
+  - **jamais deux mesures de voix le même jour** (3 occasions différentes, M §2.2) : une « Encore une ? » le même jour reprend l'articulation ;
+  - une **reprise** (3 jours sans) ne porte pas de bloc voix : la mesure reste due ;
+  - la source est la liste des **enregistrements** : seule une prise valide est enregistrée (`kind: 'reference'`, `milestone: null`, `voiceCheck`, `sessionNumber`). Le calendrier ne dépend donc ni de la version de l'algorithme, ni d'une réanalyse en cours.
+- **Bloc voix** : un seul pas, au **début** de la séance (avant l'échauffement, D §3.4) et sans limite de temps (`untimed` : tout le temps passé compte pour la règle des 60 s). Chaque prise : vibration, 350 ms d'attente, `startRecording`, « Silence… » pendant 2,5 s, puis « Lis maintenant ». Une prise refusée n'est pas enregistrée ; chacune des 3 prises peut être refaite **une fois**. Une pause pendant une prise l'abandonne, et elle repart à zéro sans compter comme un essai.
+- **Store `measures`** : une ligne par valeur et par prise, `{ id: 'recordingId:metric:algoVersion', recordingId, sessionId, dateKey, createdAt, kind: 'calibration'|'controle'|'reference-v1', metric, value, algoVersion, snrDb, context }`. Les mesures sont `debit`, `pausePct`, `debitArticulatoire`, `pauseCount` et `cvDebit` (stocké, jamais affiché). `context.leadSilent` dit si Fred a attendu le signal ; `context.forme` arrivera avec la forme du jour (phase 5). `nTakes` n'est pas stocké : les médianes se recalculent toujours depuis les prises.
+- **Ligne de base** : médiane des médianes des 3 premières séances valides. La **toute première prise de la toute première séance est écartée** (M §2.2, familiarisation), sauf si cette séance n'a que 2 prises valides (une médiane en demande 2). Les références V1 n'entrent pas dans la ligne de base : leur protocole est différent (pas de silence initial).
+- **SDw** : en calibration, `sdWithin(médianes des 3 séances, défaut)`, sans detrend. Ensuite, `max(sdWithin(toute la série, défaut, { detrend: true }), SDw de calibration)`. Le point jugé entre dans la série : un saut vu **une seule fois**, au premier contrôle, gonfle les résidus et reste en général « pas de différence mesurable » ; **vu deux fois**, il passe (M §4.2).
+- **Bande** (M §4.3) : zone grise = départ ± MDC95, trait au dernier contrôle, zone probable à 80 % (± 1,28 × SDw). Pour les pauses, la bande est bornée entre 0 et 100 %.
+- **Réanalyse** (`js/audio/voice-measure.js`) : à chaque démarrage, en arrière-plan et en attendant la fin d'une séance, toute référence sans mesure à l'`ALGO_VERSION` courante est mesurée (les références V1 avec `V1_REFERENCE_OPTIONS`, en `reference-v1`), puis les mesures des autres versions sont supprimées. Cela couvre le changement d'algorithme, le premier démarrage V2 et l'import d'une sauvegarde v1. La sauvegarde passe au format 2, qui contient `measures`.
+- **A/B** : le **premier** enregistrement de référence contre le **plus récent**, d'un autre jour, qu'il vienne de la V1, d'une calibration ou d'un contrôle.
+- **Louarn** : « La voix de départ » à la référence J1 ou à la 1re séance de calibration valide ; « Le premier écho » au premier contrôle valide ; « Le grand écho » au premier contrôle valide à 30 séances comptées ou plus. Un souvenir déjà obtenu par J7 ou J30 garde sa date. Les répliques `jal-*` vont au bloc voix : `jalon:due` à l'accueil quand une mesure est due, `jalon:1` à la toute première mesure, `jalon:7` au premier contrôle, puis `jalon:14`, `jalon:30` (contrôle à 30 séances ou plus) et `jalon:60+`.
+
 ## 5. Retour après RDV, version résultats (R §1.3, §5)
 
 - Après « Avant un RDV », un bouton **« Je sors du RDV »** apparaît sur l'accueil pendant 4 h. Il mesure la durée réelle (R). **Pendant ces 4 h, seul le bouton s'affiche.**

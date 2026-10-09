@@ -85,7 +85,9 @@ Le tirage est déterministe, avec la date du jour comme graine : jamais deux foi
 
 ### 5.3 Texte de référence (fixe, ne change jamais)
 
-C'est le texte de `expert-contenu.md` §4.1 : présentation pro, puis « Les chaussettes de l'archiduchesse… ». Il est enregistré à l'onboarding (J1), puis aux séances **7, 14 et 30**, et ensuite toutes les 30 séances.
+C'est le texte de `expert-contenu.md` §4.1 : présentation pro, puis « Les chaussettes de l'archiduchesse… ». Il est enregistré à l'onboarding (J1).
+
+> **Amendé par la spec V2 §4 (phase 3b) :** les jalons des séances 7, 14, 30, puis toutes les 30 séances, ne sont plus planifiés. Le texte est désormais lu au bloc « Mesure de ta voix », en 3 prises : aux **3 premières séances après la mise à jour** (calibration, 3 jours différents), puis à un **contrôle toutes les 6 séances**. Les enregistrements J1, J7, J14, J30… déjà faits restent valides : ils figurent dans la frise et l'écoute A/B, et sont analysés eux aussi.
 
 ### 5.4 Motivation
 
