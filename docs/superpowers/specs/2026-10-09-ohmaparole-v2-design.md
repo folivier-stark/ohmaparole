@@ -186,6 +186,13 @@
   - **Passage réservé** : ER1, ER2 puis ER3, lu par la synthèse vocale, ou une fois à l'écran sans voix. Puis 30 s de reformulation et 3 cases.
   - **Auto-grille** : une compétence à la fois, repère 1 à 3 ou « Non observé ».
   - **A/B** : la toute première lecture contre celle du jour ; le choix est stocké.
+- **Après la relecture finale**
+  - Une étape par bloc (`bilan:forme`, `bilan:lecture:1`…) : « Passer ce bloc » ne saute que l'étape en cours.
+  - Un bilan arrêté par « J’arrête là » reste dû (`bilan.complete: false`), sauf si toutes ses étapes de mesure (lectures, présentation, écoute, auto-grille) sont faites. Un bilan allé au bout est fait, même avec des étapes passées. Le rapport n'est calculé que sur un bilan complet.
+  - Un bilan le jour d'une mesure de voix valide réutilise sa lecture (`bilan.refRecordingId`) : jamais deux lectures du texte de référence le même jour.
+  - Pas de bilan sans pack « Mesure ».
+  - Annonce : d'après `bilanDue` (rien un jour de reprise, un bilan reporté est annoncé ; un bilan commencé et arrêté le jour même « reste à faire »).
+  - L'écoute par un proche n'est proposée qu'avec au moins 5 paires réelles.
 - **Mesures du bilan** : `kind: 'bilan'`, le texte dans `context.texte` (`fr.REF1`, `fr.TA`… ou `presentation`), avec `context.forme` et `context.bilan`.
   - Les métriques sont celles de la lecture, ou celles de la parole spontanée pour la présentation.
   - Elles sont réanalysées si `ALGO_VERSION` change.
