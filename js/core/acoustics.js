@@ -4,22 +4,36 @@
 //
 // Règle d'or (D §2.3) : chaque résultat porte ALGO_VERSION. Changer un paramètre de PARAMS ou une
 // convention ci-dessous = incrémenter ALGO_VERSION et recalculer tout l'historique depuis les Blobs.
+//   acoustics-1 : D §4.5 tel quel.
+//   acoustics-2 : transitoires de moins de 80 ms écartés, option ignoreBeforeSec, silence numérique =
+//                 énergie exactement nulle, raison 'sans-parole' (aucun segment, ou S − N < 6 dB).
 //
 // Conventions qui ne sont pas écrites dans D §4.5 et qu'il a fallu fixer (figées dans ALGO_VERSION) :
 // - Centiles : interpolation linéaire entre rangs (type 7, celui des tableurs).
 // - N vient des trames entièrement comprises dans les `leadSilenceSec` premières secondes. Si ce plancher
 //   dépasse de plus de 6 dB le 10e centile de toute la prise, c'est que Fred parlait déjà (ou que le bruit
 //   de fond a baissé en cours de prise) : N est alors le 10e centile de toute la prise (ses pauses et sa
-//   fin), et `leadSilent` vaut false. Les trames de zéros exacts (sous −90 dB) n'entrent pas dans N.
+//   fin), et `leadSilent` vaut false. Les trames d'énergie EXACTEMENT nulle (zéros du démarrage du micro
+//   ou du décodeur) n'entrent pas dans N ; une pièce très calme, elle, y entre, quel que soit son niveau.
 // - S est le 95e centile des trames qui suivent le silence initial (toute la prise s'il n'y en a pas).
 // - Temps d'un segment : une trame de 25 ms « voit » la parole dès qu'elle la chevauche. On recale donc le
 //   début sur la fin de la 1re trame de parole et la fin sur le début de la dernière, à ±5 ms près (le pas).
 //   Sans ce recalage, chaque segment serait allongé d'environ 25 ms et chaque pause raccourcie d'autant.
 // - Saturation : un échantillon est saturé si |x| ≥ 0,99 (le décodage Opus arrondit autour de ±1).
+// - Transitoires (clic, tap sur l'écran, choc contre la table) : un son de moins de 30 ms isolé (à plus de
+//   125 ms de tout autre son) est écarté AVANT la fusion des trous, puis tout segment de moins de 80 ms
+//   APRÈS la fusion. Sinon un tap « J'ai fini » 0,8 s après la lecture allonge D de 0,8 s, et un clic au
+//   milieu d'une pause la coupe en deux, ou la soude à la parole si la pause fait moins de 500 ms.
+//   Un son plus long (vibreur, bip, toux) RESTE de la parole.
+//
+// ⚠️ Pour l'écran d'enregistrement (phase 3b) : on fait vibrer le téléphone AVANT d'appeler startRecording,
+// et AUCUN bip ne joue pendant la prise. Un vibreur de 120 ms ou un bip de 150 ms dépassent 80 ms : ils
+// seraient comptés comme de la parole (début de D faussé, fausse pause avant la lecture). Les références V1,
+// enregistrées avec un vibreur au départ, s'analysent avec V1_REFERENCE_OPTIONS.
 
 import { mdc95 } from './stats.js';
 
-export const ALGO_VERSION = 'acoustics-1';
+export const ALGO_VERSION = 'acoustics-2';
 
 /** Paramètres de D §4.5 et §3.4. Ne pas les régler à la main : ils sont pré-enregistrés (M §5.1). */
 export const PARAMS = Object.freeze({
@@ -37,7 +51,10 @@ export const PARAMS = Object.freeze({
   maxClipRatio: 0.001, // prise refusée au-delà de 0,1 % d'échantillons saturés
   minSpeechSec: 1, // en dessous, « trop-court »
   leadToleranceDb: 6,
-  digitalSilenceDb: -90, // trames de zéros exacts (−100 dB), exclues du plancher de bruit
+  minSegmentSec: 0.08, // après fusion, un segment plus court est un transitoire, pas de la parole
+  transientMaxSec: 0.03, // avant fusion : un son de moins de 30 ms…
+  transientIsolationSec: 0.125, // …et à plus de 125 ms (½ seuil de pause) de tout son est un transitoire
+  minSpeechModeDb: 6, // S − N plus petit (2 × l'hystérésis) : aucune parole dans la prise
   // Variabilité du débit (en observation, D §1.4 et §2.3) :
   nucleiBandHz: [300, 3000],
   nucleiProminenceDb: 2,
@@ -45,7 +62,17 @@ export const PARAMS = Object.freeze({
   breathGroupMinSec: 1,
 });
 
+/**
+ * Réglages pour réanalyser les références V1 (`kind: 'reference'`) : pas de silence imposé avant la
+ * lecture (N est pris sur toute la prise), et les 250 premières ms ignorées (vibreur au démarrage).
+ */
+export const V1_REFERENCE_OPTIONS = Object.freeze({ leadSilenceSec: 0, ignoreBeforeSec: 0.25 });
+
 const EPS = 1e-10;
+/** Énergie d'une trame de zéros exacts : 10·log10(0 + 1e-10). */
+const DIGITAL_ZERO_DB = 10 * Math.log10(EPS);
+/** Niveau en direct d'un micro qui ne rend que des zéros (contexte suspendu, micro coupé). */
+export const NO_SIGNAL_DB = -100;
 const round3 = (x) => Math.round(x * 1000) / 1000;
 const round1 = (x) => Math.round(x * 10) / 10;
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x);
@@ -148,11 +175,12 @@ function percentile(values, p) {
 }
 
 /**
- * 10e centile des trames, sans les trames de silence numérique (zéros exacts du démarrage du micro ou du
- * décodeur) : elles ne sont pas du bruit de pièce et feraient tomber N à −100 dB. Toutes si rien d'autre.
+ * 10e centile des trames, sans les trames d'énergie exactement nulle (zéros du démarrage du micro ou du
+ * décodeur) : elles ne sont pas du bruit de pièce et feraient tomber N à −100 dB. Une trame très faible
+ * mais non nulle reste, sinon la mesure dépendrait du gain du micro. Toutes si rien d'autre.
  */
 function noiseFloor(e) {
-  const real = e.filter((x) => x > PARAMS.digitalSilenceDb);
+  const real = e.filter((x) => x > DIGITAL_ZERO_DB);
   return percentile(real.length ? real : e, PARAMS.noisePercentile);
 }
 
@@ -201,6 +229,32 @@ function mergeGaps(segs, minGap) {
   return out;
 }
 
+/**
+ * Début de prise à ignorer (vibreur, tap) : on retire les segments qui finissent avant `t` et on ramène à `t`
+ * les débuts qui le précèdent. Appliqué AVANT la fusion, pour qu'un vibreur ne se soude pas à la lecture.
+ */
+function ignoreBefore(segs, t) {
+  if (!(t > 0)) return segs;
+  return segs.filter((s) => s.end > t).map((s) => (s.start < t ? { start: t, end: s.end } : s));
+}
+
+/**
+ * Avant la fusion : écarte un son très bref (moins de 30 ms une fois recalé, ce que laisse un clic ou un tap
+ * après le lissage médian) et isolé, c'est-à-dire à plus de 125 ms de tout autre son des deux côtés. Sans
+ * cela, un clic au milieu d'une pause de 400 ms, à moins de 250 ms de la parole de chaque côté, serait soudé
+ * à la lecture par la fusion et la pause disparaîtrait. Le seuil reste bas exprès : une syllabe faible de fin
+ * de phrase, après une occlusive, dépasse le seuil 40 à 80 ms et doit rester (vérifié à 22 dB de S − N).
+ */
+function dropIsolatedTransients(runs) {
+  const iso = PARAMS.transientIsolationSec;
+  return runs.filter((s, i) => {
+    if (s.end - s.start >= PARAMS.transientMaxSec) return true;
+    const before = i > 0 ? s.start - runs[i - 1].end : Infinity;
+    const after = i < runs.length - 1 ? runs[i + 1].start - s.end : Infinity;
+    return before < iso || after < iso;
+  });
+}
+
 function clipRatioOf(samples) {
   if (!samples.length) return 0;
   let n = 0;
@@ -219,28 +273,37 @@ function checkInput(samples, sampleRate) {
  * Détection de la parole d'une prise, en suivant D §4.5 pas à pas.
  * @param {Float32Array} samples  mono, valeurs dans [-1, 1]
  * @param {number} sampleRate     en Hz (16000 après analyze.js)
- * @param {{ leadSilenceSec?: number }} [opts]  durée du silence imposé avant la lecture (2 s)
+ * @param {{ leadSilenceSec?: number, ignoreBeforeSec?: number }} [opts]
+ *   leadSilenceSec : silence imposé avant la lecture (2 s ; 0 pour une prise sans silence initial) ;
+ *   ignoreBeforeSec : début de prise à ignorer (0 ; 0,25 pour les références V1, voir V1_REFERENCE_OPTIONS)
  * @returns {{
- *   valid: boolean, reason: 'bruit'|'saturation'|'trop-court'|null,
+ *   valid: boolean, reason: 'saturation'|'sans-parole'|'bruit'|'trop-court'|null,
  *   snrDb: number|null, clipRatio: number,
  *   speechStart: number|null, speechEnd: number|null, D: number,
  *   pauseTotal: number, pauseCount: number, segments: {start: number, end: number}[],
  *   algoVersion: string,
- *   leadSilent: boolean, noiseDb: number|null, speechDb: number|null, thresholdDb: number|null
+ *   leadSilent: boolean|null, noiseDb: number|null, speechDb: number|null, thresholdDb: number|null
  * }}
  * Temps en secondes, arrondis à la milliseconde ; dB au dixième. `leadSilent` vaut false si Fred a parlé
- * pendant le silence initial (à signaler : « attends 2 s avant de lire »). Priorité des refus :
- * saturation, puis bruit, puis trop-court (D < 1 s ou prise plus courte que le silence initial).
+ * pendant le silence initial (à signaler : « attends 2 s avant de lire »), null sans silence initial.
+ * Priorité des refus :
+ * - 'saturation' : plus de 0,1 % d'échantillons saturés ;
+ * - 'sans-parole' : aucun segment de parole, ou S − N < 6 dB, c'est-à-dire aucune parole dans la
+ *   distribution d'énergie (« je ne t'ai pas entendu »). Un tap isolé dans une prise muette ne compte pas ;
+ *   sans ce garde, l'hystérésis resterait bloquée sur « parole » (T − 3 dB passe sous le bruit) ;
+ * - 'bruit' : de la parole, mais S − N < 20 dB (« trop de bruit : change de pièce ») ;
+ * - 'trop-court' : D < 1 s, ou prise plus courte que le silence initial.
  */
-export function analyzeSpeech(samples, sampleRate, { leadSilenceSec = 2 } = {}) {
+export function analyzeSpeech(samples, sampleRate, { leadSilenceSec = 2, ignoreBeforeSec = 0 } = {}) {
   checkInput(samples, sampleRate);
   const lead = Math.max(0, isNum(leadSilenceSec) ? leadSilenceSec : 2);
+  const skip = isNum(ignoreBeforeSec) ? Math.max(0, ignoreBeforeSec) : 0;
   const clipRatio = clipRatioOf(samples);
   const result = {
     valid: false, reason: 'trop-court', snrDb: null, clipRatio,
     speechStart: null, speechEnd: null, D: 0, pauseTotal: 0, pauseCount: 0, segments: [],
     algoVersion: ALGO_VERSION,
-    leadSilent: true, noiseDb: null, speechDb: null, thresholdDb: null,
+    leadSilent: lead > 0 ? true : null, noiseDb: null, speechDb: null, thresholdDb: null,
   };
 
   const fr = framing(samples.length, sampleRate);
@@ -264,11 +327,15 @@ export function analyzeSpeech(samples, sampleRate, { leadSilenceSec = 2 } = {}) 
   const S = percentile(rest.length ? rest : e, PARAMS.speechPercentile);
   const snr = S - N;
 
-  // 4. Seuil T avec hystérésis ±3 dB. 5. Fusion des trous de moins de 250 ms.
+  // 4. Seuil T avec hystérésis ±3 dB. 5. Fusion des trous de moins de 250 ms, puis transitoires écartés.
   const T = speechThreshold(N, S);
   const flags = hysteresis(e, T, PARAMS.hysteresisDb);
-  const segs = mergeGaps(runsToSegments(flags, fr, samples.length, sampleRate), PARAMS.minPauseSec);
-  const speechInLead = flags.subarray(0, leadFrames).some((f) => f === 1);
+  const runs = dropIsolatedTransients(ignoreBefore(runsToSegments(flags, fr, samples.length, sampleRate), skip));
+  const segs = mergeGaps(runs, PARAMS.minPauseSec).filter((s) => s.end - s.start >= PARAMS.minSegmentSec);
+  // Fin de la dernière trame entièrement comprise dans le silence initial : un segment qui commence avant
+  // a sa 1re trame de parole dans ce silence (voir le recalage des bords de runsToSegments).
+  const leadEnd = leadFrames > 0 ? ((leadFrames - 1) * fr.hop + fr.win) / sampleRate : 0;
+  const speechInLead = segs.some((s) => s.start < leadEnd);
 
   // 6. D, Σ pauses, nombre de pauses, segments, rapport signal/bruit.
   const segments = segs.map((s) => ({ start: round3(s.start), end: round3(s.end) }));
@@ -280,6 +347,7 @@ export function analyzeSpeech(samples, sampleRate, { leadSilenceSec = 2 } = {}) 
 
   let reason = null;
   if (clipRatio > PARAMS.maxClipRatio) reason = 'saturation';
+  else if (!segments.length || snr < PARAMS.minSpeechModeDb) reason = 'sans-parole';
   else if (snr < PARAMS.minSnrDb) reason = 'bruit';
   else if (D < PARAMS.minSpeechSec) reason = 'trop-court';
 
@@ -294,7 +362,7 @@ export function analyzeSpeech(samples, sampleRate, { leadSilenceSec = 2 } = {}) 
     pauseTotal: round3(pauseTotal),
     pauseCount: Math.max(0, segments.length - 1),
     segments,
-    leadSilent: leadUsable && !speechInLead,
+    leadSilent: lead > 0 ? leadUsable && !speechInLead : null,
     noiseDb: round1(N),
     speechDb: round1(S),
     thresholdDb: round1(T),
@@ -308,25 +376,42 @@ export function analyzeSpeech(samples, sampleRate, { leadSilenceSec = 2 } = {}) 
  * comptées une fois (reference.syllabes = 86). À n'appeler que sur une analyse `valid`.
  * `pausePct` est une FRACTION (0,18 = 18 % du temps), comme la formule Σpauses / D de D §4.
  * Sans durée de parole, ou sans syllabes, la mesure concernée vaut null (jamais Infinity ni NaN).
- * @returns {{ debit: number|null, pausePct: number|null, debitArticulatoire: number|null }}  syll/s
+ * @returns {{ debit: number|null, pausePct: number|null, debitArticulatoire: number|null,
+ *   pauseCount: number|null }}  débits en syll/s ; pauseCount = pauses d'au moins 250 ms
  */
 export function readingMetrics(analysis, syllables) {
   const D = analysis?.D;
   const pauses = isNum(analysis?.pauseTotal) ? analysis.pauseTotal : 0;
-  if (!isNum(D) || D <= 0) return { debit: null, pausePct: null, debitArticulatoire: null };
+  if (!isNum(D) || D <= 0) return { debit: null, pausePct: null, debitArticulatoire: null, pauseCount: null };
   const hasSyll = isNum(syllables) && syllables > 0;
   const articulated = D - pauses;
   return {
     debit: hasSyll ? syllables / D : null,
     pausePct: pauses / D,
     debitArticulatoire: hasSyll && articulated > 0 ? syllables / articulated : null,
+    pauseCount: isNum(analysis.pauseCount) ? analysis.pauseCount : null,
   };
 }
 
-/** Médiane de chaque mesure sur les prises d'une séance (3 prises, D §3.4). Prises non mesurées ignorées. */
-export function sessionMedians(takes, keys = ['debit', 'pausePct', 'debitArticulatoire']) {
+/** Clés de readingMetrics, dans l'ordre. */
+export const READING_KEYS = Object.freeze(['debit', 'pausePct', 'debitArticulatoire', 'pauseCount']);
+
+/** Prises valides minimales pour une médiane de séance : avec une seule, ce n'est plus une médiane. */
+export const SESSION_MIN_TAKES = 2;
+
+/**
+ * Médiane de chaque mesure sur les prises d'une séance (3 prises, D §3.4). Une prise refusée (null, ou
+ * sans aucune valeur) ne compte pas. Moins de 2 prises valides pour une mesure : null pour cette mesure.
+ * @returns {{ debit, pausePct, debitArticulatoire, pauseCount, nTakes: number }}  nTakes = prises valides
+ */
+export function sessionMedians(takes, keys = READING_KEYS) {
+  const valid = (takes ?? []).filter((t) => t && keys.some((k) => isNum(t[k])));
   const out = {};
-  for (const k of keys) out[k] = median((takes ?? []).map((t) => t?.[k]));
+  for (const k of keys) {
+    const xs = valid.map((t) => t[k]).filter(isNum);
+    out[k] = xs.length >= SESSION_MIN_TAKES ? median(xs) : null;
+  }
+  out.nTakes = valid.length;
   return out;
 }
 
@@ -445,12 +530,35 @@ export function baseline(sessionsMedians) {
 }
 
 /**
- * Écart type intra-individuel entre séances (SDw, n − 1) des médianes de séance, borné par le bas :
- * max(mesuré, défaut) (D §3.3 : avec si peu de points, la valeur la plus prudente). Moins de 2 valeurs :
- * le défaut seul (null sans défaut).
+ * Écart type des résidus autour de la droite des moindres carrés y = a + b·x, avec n − 2 degrés de
+ * liberté. x = rang de la valeur dans la liste d'origine (une séance de référence par rang). null si n < 3.
  */
-export function sdWithin(values, defaultSd) {
-  const measured = sampleSd((values ?? []).filter(isNum));
+function detrendedSd(points) {
+  const n = points.length;
+  if (n < 3) return null;
+  const mx = points.reduce((s, p) => s + p.x, 0) / n;
+  const my = points.reduce((s, p) => s + p.y, 0) / n;
+  const sxx = points.reduce((s, p) => s + (p.x - mx) ** 2, 0);
+  const b = sxx > 0 ? points.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0) / sxx : 0;
+  const ss = points.reduce((s, p) => s + (p.y - (my + b * (p.x - mx))) ** 2, 0);
+  return Math.sqrt(ss / (n - 2));
+}
+
+/**
+ * Écart type intra-individuel entre séances (SDw) des médianes de séance, borné par le bas :
+ * max(mesuré, défaut) (D §3.3 : avec si peu de points, la valeur la plus prudente). Sans assez de points
+ * pour mesurer : le défaut seul (null sans défaut).
+ * - **Calibration** (3 séances, aucun progrès attendu) : `sdWithin(médianes, défaut)`, écart type simple
+ *   (n − 1), au moins 2 valeurs.
+ * - **Mise à jour de SDw sur la progression** (D §3.3 : « à partir des écarts autour de la tendance ») :
+ *   `sdWithin(médianes, défaut, { detrend: true })`, écart type des résidus d'une droite (n − 2), au moins
+ *   3 valeurs, dans l'ordre chronologique. Sans cela, un vrai progrès gonfle SDw et se cache lui-même :
+ *   de 6,8 à 5,9 syll/s sur 9 séances, l'écart type simple vaut 0,36 (MDC 1,0 : « pas de différence »),
+ *   les résidus 0,07, bornés par le défaut à 0,27 (MDC 0,75 : « plus posé »).
+ */
+export function sdWithin(values, defaultSd, { detrend = false } = {}) {
+  const points = (values ?? []).map((y, x) => ({ x, y })).filter((p) => isNum(p.y));
+  const measured = detrend ? detrendedSd(points) : sampleSd(points.map((p) => p.y));
   const def = isNum(defaultSd) ? defaultSd : null;
   if (measured === null) return def;
   return def === null ? measured : Math.max(measured, def);
@@ -484,14 +592,17 @@ export const CALM_DIRECTION = Object.freeze({ debit: -1, debitArticulatoire: -1,
 /**
  * Verdict en trois états (D §4, rang 1) : l'écart à la ligne de base compte s'il atteint la MDC95
  * (2,77 × SDw, soit |RCI| ≥ 1,96). En dessous : « pas de différence mesurable ».
- * @param {number} direction  sens du « plus posé » (CALM_DIRECTION) : −1 par défaut, celui du débit
+ * @param {-1|1} direction  OBLIGATOIRE : sens du « plus posé » de la mesure, à prendre dans CALM_DIRECTION
+ *   (−1 pour un débit, +1 pour les pauses). Une erreur de sens inverserait le verdict : pas de défaut.
  * @returns {'plus-pose'|'pas-de-difference'|'plus-rapide'|null}  null si une donnée manque
+ * @throws {RangeError} si direction n'est pas −1 ou +1
  */
-export function verdictReading(baselineValue, currentValue, sdw, direction = -1) {
+export function verdictReading(baselineValue, currentValue, sdw, direction) {
+  if (direction !== 1 && direction !== -1) throw new RangeError(`Sens attendu : -1 ou 1 (CALM_DIRECTION), reçu ${direction}`);
   if (!isNum(baselineValue) || !isNum(currentValue) || !isNum(sdw) || sdw <= 0) return null;
   const delta = currentValue - baselineValue;
   if (Math.abs(delta) < mdc95(sdw)) return 'pas-de-difference';
-  return Math.sign(delta) === Math.sign(direction || -1) ? 'plus-pose' : 'plus-rapide';
+  return Math.sign(delta) === direction ? 'plus-pose' : 'plus-rapide';
 }
 
 // ─── Silence tenu au micro, en direct (spec V2 §6) ──────────────────────────────────────
@@ -505,25 +616,39 @@ export function verdictReading(baselineValue, currentValue, sdw, direction = -1)
  *   le seuil de pause de D) ; si Fred se tait déjà à `startAt`, il commence à `startAt`.
  * - La reprise est la 1re suite de parole d'au moins `minSpeechMs` (150 ms) : un clic ou un souffle bref
  *   ne coupe pas le silence.
- * @param {{t: number, db: number}[]} levels  t en ms, croissant ; les niveaux avant startAt sont ignorés
- * @returns {{ state: 'attente'|'silence'|'reprise', done: boolean, silenceStart: number|null,
+ * - Une mesure sans données n'est pas un silence : elle s'arrête sur une interruption (levelInterruption),
+ *   et ses durées valent alors null. Ne jamais stocker une mesure `interrupted`.
+ * @param {{t: number, db: number, interruption?: string}[]} levels  t en ms, croissant
+ * @param {object} opts  startAt : début de la mesure (ms) ; les niveaux antérieurs sont ignorés ; sans
+ *   startAt, la mesure part du 1er niveau. intervalMs / maxGapFactor : voir levelInterruption.
+ * @returns {{ state: 'attente'|'silence'|'reprise', done: boolean, interrupted: boolean,
+ *   interruption: 'trou'|'pas-de-signal'|'cache'|'micro'|'suspendu'|null, silenceStart: number|null,
  *   speechOnset: number|null, silenceHeldMs: number|null, latencyMs: number|null }}
  *   attente = la parole en cours n'est pas encore finie ; silenceHeldMs court jusqu'au dernier niveau tant
  *   que la parole n'a pas repris ; latencyMs = reprise − startAt.
  */
-export function silenceTracker(levels, { thresholdDb, hysteresisDb = PARAMS.hysteresisDb, startAt = 0,
-  minSpeechMs = 150, minSilenceMs = 250 } = {}) {
+export function silenceTracker(levels, { thresholdDb, hysteresisDb = PARAMS.hysteresisDb, startAt = null,
+  minSpeechMs = 150, minSilenceMs = 250, intervalMs = 50, maxGapFactor = 3 } = {}) {
   if (!isNum(thresholdDb)) throw new RangeError(`Seuil en dB attendu : ${thresholdDb}`);
   const h = Math.max(0, hysteresisDb);
+  const from = isNum(startAt) ? startAt : null;
+  let origin = from;
   let phase = 'attente';
   let silenceStart = null;
   let speechOnset = null;
   let hyst = null;
   let runStart = null;
   let lastT = null;
-  for (const { t, db } of levels ?? []) {
-    if (!isNum(t) || t < startAt) continue;
+  let interruption = null;
+  for (const level of levels ?? []) {
+    const t = level?.t;
+    if (!isNum(t) || (from !== null && t < from)) continue;
+    // Le trou se mesure aussi depuis startAt : rien reçu pendant la 1re seconde, c'est une mesure aveugle.
+    interruption = levelInterruption(level, lastT ?? from, { intervalMs, maxGapFactor });
+    if (interruption) break;
+    const { db } = level;
     lastT = t;
+    if (origin === null) origin = t;
     const prev = hyst;
     if (hyst === null) hyst = db >= thresholdDb ? 'parole' : 'silence';
     else if (hyst === 'parole' && db < thresholdDb - h) hyst = 'silence';
@@ -531,7 +656,7 @@ export function silenceTracker(levels, { thresholdDb, hysteresisDb = PARAMS.hyst
     if (hyst !== prev) runStart = t;
     const runMs = t - runStart;
     if (phase === 'attente') {
-      if (prev === null && hyst === 'silence') { phase = 'silence'; silenceStart = startAt; }
+      if (prev === null && hyst === 'silence') { phase = 'silence'; silenceStart = origin; }
       else if (hyst === 'silence' && runMs >= minSilenceMs) { phase = 'silence'; silenceStart = runStart; }
     } else if (phase === 'silence' && hyst === 'parole' && runMs >= minSpeechMs) {
       phase = 'reprise';
@@ -539,13 +664,32 @@ export function silenceTracker(levels, { thresholdDb, hysteresisDb = PARAMS.hyst
       break;
     }
   }
-  const done = phase === 'reprise';
+  const interrupted = interruption !== null;
+  const done = !interrupted && phase === 'reprise';
   return {
     state: phase,
     done,
+    interrupted,
+    interruption,
     silenceStart,
     speechOnset,
-    silenceHeldMs: done ? speechOnset - silenceStart : phase === 'silence' ? lastT - silenceStart : null,
-    latencyMs: done ? speechOnset - startAt : null,
+    silenceHeldMs: interrupted ? null : done ? speechOnset - silenceStart : phase === 'silence' ? lastT - silenceStart : null,
+    latencyMs: done ? speechOnset - origin : null,
   };
+}
+
+/**
+ * Cause d'interruption d'une mesure en direct, portée par un niveau, ou null. Pure.
+ * - `level.interruption` : posée par js/audio/live-level.js ('cache' : page passée en arrière-plan ;
+ *   'micro' : piste arrêtée ou coupée par le système ; 'suspendu' : AudioContext qui ne tourne plus) ;
+ * - db ≤ NO_SIGNAL_DB (−100 dB exact) : le micro ne rend que des zéros, ce n'est pas un silence de pièce
+ *   ('pas-de-signal') ;
+ * - plus de maxGapFactor × intervalMs (3 × 50 ms) depuis le niveau précédent : minuterie ralentie ou page
+ *   gelée, une reprise de parole a pu passer entre deux niveaux ('trou').
+ */
+export function levelInterruption(level, prevT, { intervalMs = 50, maxGapFactor = 3 } = {}) {
+  if (typeof level?.interruption === 'string' && level.interruption) return level.interruption;
+  if (!isNum(level?.db) || level.db <= NO_SIGNAL_DB) return 'pas-de-signal';
+  if (isNum(prevT) && level.t - prevT > maxGapFactor * intervalMs) return 'trou';
+  return null;
 }
