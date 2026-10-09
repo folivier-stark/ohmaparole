@@ -22,15 +22,26 @@ async function loadLouarn(lang) {
   }
 }
 
+/** Pack « Mesure » (bilans, point de la semaine, réplique éclair), ou null si absent. */
+async function loadMesure(lang) {
+  try {
+    return await fetchJson(`content/${lang}/mesure.json`);
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
 export async function loadContent(lang = 'fr') {
   if (!cached) {
-    const [program, exercises, extras, louarn] = await Promise.all([
+    const [program, exercises, extras, louarn, mesure] = await Promise.all([
       fetchJson('content/program.json'),
       fetchJson(`content/${lang}/exercises.json`),
       fetchJson(`content/${lang}/extras.json`),
       loadLouarn(lang),
+      loadMesure(lang),
     ]);
-    cached = { ...indexContent({ program, exercises, extras }), louarn };
+    cached = { ...indexContent({ program, exercises, extras }), louarn, mesure };
   }
   return cached;
 }

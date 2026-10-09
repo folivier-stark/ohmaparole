@@ -1,0 +1,238 @@
+{
+  "lang": "fr",
+  "source": "docs/experts/expert-contenu-mesure.md",
+  "referenceSyllabes": 86,
+  "convention": "1 syllabe = 1 voyelle prononcée. Le e final non accentué (-e, -es, -ent des verbes) ne compte pas, sauf s'il est la seule voyelle du mot (je, de, le, ce, que) ; tout autre e muet compte, même à l'intérieur d'un mot (pe-tites = 2, en-tre-prises = 3).\nLiaisons, enchaînements et élisions écrites (l', j', d', qu', c') ne changent rien ; i, u ou ou suivis d'une voyelle font une seule syllabe avec elle (quo-ti-dien = 3, suis = 1), et un sigle se compte lettre par lettre (IA = 2).",
+  "textesInedits": [
+    {
+      "id": "fr.TA",
+      "titre": "Les commerçants du département",
+      "texte": "Bonjour, je m'appelle Fred. Je travaille avec les commerçants et les indépendants du département. Mon rôle consiste à repérer les tâches répétitives qu'un assistant IA pourrait prendre en charge. Je ne propose rien sans avoir d'abord observé votre organisation. Quelle partie de votre semaine aimeriez-vous alléger en premier ?",
+      "syllabes": 87
+    },
+    {
+      "id": "fr.TB",
+      "titre": "Les professionnels du bâtiment",
+      "texte": "Enchanté, moi c'est Fred. Je prépare et j'installe des assistants IA pour les professionnels du bâtiment. Je pars toujours de votre façon de faire, pas d'une solution clé en main. Pour commencer, décrivez-moi une journée ordinaire, du lever au coucher. À quel moment sentez-vous que le travail administratif déborde sur le reste ?",
+      "syllabes": 87
+    },
+    {
+      "id": "fr.TC",
+      "titre": "Les cabinets et les agences",
+      "texte": "Bonjour, c'est Fred : nous nous sommes parlé vendredi. Je mets en place l'IA dans les cabinets, les agences et les commerces. Ma démarche : je commence par regarder comment circulent vos documents et vos messages. Puis nous décidons ensemble de ce qui mérite d'être simplifié. Selon vous, que deviendrait votre activité si vous partiez une semaine ?",
+      "syllabes": 87
+    }
+  ],
+  "ecoutesReservees": [
+    {
+      "id": "fr.ER1",
+      "titre": "Le réparateur de vélos",
+      "passage": "Je tiens un atelier de réparation de vélos, en centre-ville. On est trois : moi, un mécanicien et une apprentie, qui vient une semaine sur deux. Les réparations en cours, on les écrit sur un grand tableau blanc. Le mois dernier, il a été effacé pendant le ménage, et on a dû rappeler tout le monde. Les pièces, je les commande chez deux grossistes, et je recopie les références à la main dans un cahier. Les batteries des vélos électriques partent chez le fabricant.",
+      "faitsCles": [
+        "Les réparations sont écrites sur un tableau blanc, effacé le mois dernier pendant le ménage.",
+        "Les références des pièces sont recopiées à la main dans un cahier.",
+        "Les batteries des vélos électriques partent chez le fabricant."
+      ]
+    },
+    {
+      "id": "fr.ER2",
+      "titre": "Le serrurier dépanneur",
+      "passage": "On fait de la serrurerie et du dépannage, à trois : moi et deux techniciens. Mon bureau, c'est surtout la camionnette. La nuit et le week-end, les deux techniciens se passent un portable d'astreinte, une semaine chacun. Le lundi matin, celui qui était d'astreinte me raconte ses interventions de vive voix, et je fais les factures à partir de ça. Les assurances de nos clients demandent des photos avant et après chaque réparation. Ces photos restent dans les téléphones des techniciens.",
+      "faitsCles": [
+        "Les deux techniciens se passent un portable d'astreinte, une semaine chacun.",
+        "Les factures sont faites à partir du récit oral du lundi matin.",
+        "Les photos avant et après, demandées par les assurances, restent dans les téléphones des techniciens."
+      ]
+    },
+    {
+      "id": "fr.ER3",
+      "titre": "La brûlerie de café",
+      "passage": "Avec ma sœur, on torréfie du café dans un ancien garage, à l'entrée de la zone artisanale. On vend sur place et sur trois marchés : le mardi, le vendredi et le dimanche. Les étiquettes des sachets, on les imprime une par une. Le soir, des restaurants nous passent commande par message, pour le lendemain matin. C'est ma sœur qui répond. Et la communauté de communes nous a envoyé un appel d'offres pour le café de ses bureaux, à rendre avant fin novembre.",
+      "faitsCles": [
+        "Le café est vendu sur place et sur trois marchés : mardi, vendredi et dimanche.",
+        "Le soir, des restaurants commandent par message pour le lendemain matin.",
+        "La communauté de communes a envoyé un appel d'offres à rendre avant fin novembre."
+      ]
+    }
+  ],
+  "questionsSpontanees": [
+    {
+      "id": "fr.QS01",
+      "texte": "Explique à une fleuriste ce que fait un assistant IA, sans aucun mot technique."
+    },
+    {
+      "id": "fr.QS02",
+      "texte": "Un expert-comptable te demande ce que veut dire « pseudonymisation ». Explique-lui avec un exemple."
+    },
+    {
+      "id": "fr.QS03",
+      "texte": "Présente ton parcours en trois étapes à un dirigeant qui ne te connaît pas."
+    },
+    {
+      "id": "fr.QS04",
+      "texte": "Explique à un menuisier pourquoi tu commences par écouter avant de proposer quoi que ce soit."
+    },
+    {
+      "id": "fr.QS05",
+      "texte": "Raconte à une gérante de boutique comment se passe une mise en place, du premier rendez-vous à la prise en main."
+    },
+    {
+      "id": "fr.QS06",
+      "texte": "Un dirigeant de PME te demande pourquoi utiliser plusieurs IA plutôt qu'une seule. Réponds-lui simplement."
+    },
+    {
+      "id": "fr.QS07",
+      "texte": "Une boulangère te demande ce qui se passe si l'outil se trompe. Réponds-lui."
+    },
+    {
+      "id": "fr.QS08",
+      "texte": "Au club d'entreprises, quelqu'un te demande pourquoi tu fais ce métier. Réponds-lui."
+    },
+    {
+      "id": "fr.QS09",
+      "texte": "Explique à un plombier ce qu'il peut préparer avant votre premier rendez-vous de travail."
+    },
+    {
+      "id": "fr.QS10",
+      "texte": "Un prospect te demande ce qui te distingue d'une agence web. Réponds sans critiquer personne."
+    },
+    {
+      "id": "fr.QS11",
+      "texte": "Un chauffeur de taxi te dit qu'il tape avec deux doigts. Explique-lui comment il pourrait dicter à la place."
+    },
+    {
+      "id": "fr.QS12",
+      "texte": "Tu croises un ancien collègue au marché. Explique-lui en quoi consiste ton travail aujourd'hui."
+    }
+  ],
+  "repliquesEclair": [
+    {
+      "id": "fr.RE01",
+      "replique": "J'ai déjà essayé ChatGPT. Il m'a sorti n'importe quoi.",
+      "critere1": "J'ai reformulé sa déception avant de répondre.",
+      "critere2": "J'ai fini par une question sur ce qu'il avait essayé."
+    },
+    {
+      "id": "fr.RE02",
+      "replique": "Mes données, je ne veux pas qu'elles partent aux États-Unis.",
+      "critere1": "J'ai reformulé son inquiétude avant de répondre.",
+      "critere2": "J'ai cité une option concrète : outil européen ou pseudonymisation."
+    },
+    {
+      "id": "fr.RE03",
+      "replique": "L'informatique et moi, ça fait deux. Je ne m'en servirai jamais.",
+      "critere1": "J'ai posé une question sur ce qu'il fait déjà avec son téléphone.",
+      "critere2": "Je n'ai dit aucun sigle ni aucun mot anglais."
+    },
+    {
+      "id": "fr.RE04",
+      "replique": "Avant d'aller plus loin, donnez-moi votre prix.",
+      "critere1": "J'ai donné le cadre, prix compris, sans repousser la question.",
+      "critere2": "J'ai fini par une question de validation."
+    },
+    {
+      "id": "fr.RE05",
+      "replique": "Avec votre outil, je pourrai me passer de ma secrétaire ?",
+      "critere1": "J'ai dit clairement que l'outil ne remplace pas une personne.",
+      "critere2": "J'ai demandé ce qui prend du temps à sa secrétaire."
+    },
+    {
+      "id": "fr.RE06",
+      "replique": "Vous me garantissez que je vais gagner du temps ?",
+      "critere1": "Je n'ai dit ni « garanti » ni aucun chiffre de gain.",
+      "critere2": "J'ai proposé de juger sur une seule tâche."
+    },
+    {
+      "id": "fr.RE07",
+      "replique": "Tiens, vous qui êtes dans l'informatique, vous pourriez regarder mon imprimante ?",
+      "critere1": "Mon non tient en une phrase.",
+      "critere2": "J'ai ramené la conversation à l'objectif du rendez-vous."
+    },
+    {
+      "id": "fr.RE08",
+      "replique": "À la radio, ils disent que l'IA va remplacer tout le monde. Vous en pensez quoi ?",
+      "critere1": "J'ai donné mon avis en deux phrases au plus.",
+      "critere2": "J'ai enchaîné sur une question à propos de son travail."
+    },
+    {
+      "id": "fr.RE09",
+      "replique": "C'est intéressant. Laissez-moi y réfléchir, je vous rappelle.",
+      "critere1": "J'ai posé une seule question sur ce qui le fait hésiter.",
+      "critere2": "J'ai proposé une date précise pour sa réponse."
+    },
+    {
+      "id": "fr.RE10",
+      "replique": "Il faut d'abord que j'en parle à mon associée.",
+      "critere1": "J'ai demandé ce que son associée aura besoin de savoir.",
+      "critere2": "J'ai proposé un rendez-vous à trois, avec une date."
+    },
+    {
+      "id": "fr.RE11",
+      "replique": "Si on y va, vous pourriez démarrer quand ?",
+      "critere1": "J'ai nommé sa question avant d'y répondre.",
+      "critere2": "J'ai fini par une question fermée, puis je me suis tu."
+    },
+    {
+      "id": "fr.RE12",
+      "replique": "Ma comptable pourrait s'en servir aussi, ou c'est réservé à moi ?",
+      "critere1": "J'ai reformulé sa question avant de répondre.",
+      "critere2": "J'ai fini par une question fermée sur la suite."
+    }
+  ],
+  "autoGrille": [
+    {
+      "id": "fr.G1",
+      "competence": "Première impression",
+      "niveaux": [
+        "Je salue et me présente. Ni durée, ni déroulé, ni budget annoncés.",
+        "Dans la 1re minute : son nom, la durée, le déroulé. Le mot « budget » est dit.",
+        "En 60 s : cadre complet, budget au même ton, « Ça vous va ? », j'attends."
+      ]
+    },
+    {
+      "id": "fr.G2",
+      "competence": "Prise de contact",
+      "niveaux": [
+        "3 questions ou plus hors sujet, ou c'est l'autre qui fait la transition.",
+        "1 ou 2 questions de lien, puis je fais la transition moi-même.",
+        "Une seule question, j'écoute la réponse, ma transition reprend un de ses mots."
+      ]
+    },
+    {
+      "id": "fr.G3",
+      "competence": "Raconter un cas client",
+      "niveaux": [
+        "Plus de 90 s, ou un des trois temps manque, ou un chiffre, ou une promesse.",
+        "Les trois temps en 60 à 90 s, sans chiffre ni promesse.",
+        "60 s au plus, trois temps, les mots du client, « Ça vous parle ? », silence."
+      ]
+    },
+    {
+      "id": "fr.G4",
+      "competence": "Recadrer",
+      "niveaux": [
+        "Les anecdotes vont au bout, le temps est dépassé sans que je le dise.",
+        "Une coupure avec l'objectif, mais tard ou après plusieurs excuses.",
+        "Dès la 2e digression : son nom, son point utile, l'objectif, le temps restant."
+      ]
+    },
+    {
+      "id": "fr.G5",
+      "competence": "Dire non",
+      "niveaux": [
+        "J'accepte la demande hors cadre, ou je réponds « on verra ».",
+        "Je dis non, puis 2 justifications ou plus, ou une porte floue.",
+        "Non en une phrase, une seule alternative concrète, puis silence."
+      ]
+    },
+    {
+      "id": "fr.G6",
+      "competence": "Repérer un signal et conclure",
+      "niveaux": [
+        "Après une question sur le comment ou le quand, je continue d'argumenter.",
+        "Je réponds au signal. Ma question finale est ouverte, ou suivie d'une phrase.",
+        "Je nomme le signal, je résume en 3 points, question fermée, 3 s de silence."
+      ]
+    }
+  ]
+}

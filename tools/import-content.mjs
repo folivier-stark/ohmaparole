@@ -35,3 +35,11 @@ const out = {
 mkdirSync('content/fr', { recursive: true });
 writeFileSync('content/fr/exercises.json', `${JSON.stringify(out, null, 2)}\n`);
 console.log(`${out.items.length} exercices et ${out.consignes.length} consignes écrits dans content/fr/exercises.json`);
+
+// Pack « Mesure » (bilans, point de la semaine, réplique éclair) : bloc JSON unique du rapport.
+const MESURE_SOURCE = 'docs/experts/expert-contenu-mesure.md';
+const mesureBlock = readFileSync(MESURE_SOURCE, 'utf8').match(/```json\r?\n([\s\S]*?)```/);
+if (!mesureBlock) throw new Error(`Bloc json introuvable dans ${MESURE_SOURCE}`);
+const mesure = { lang: LANG, source: MESURE_SOURCE, ...JSON.parse(mesureBlock[1]) };
+writeFileSync('content/fr/mesure.json', `${JSON.stringify(mesure, null, 2)}\n`);
+console.log(`Pack Mesure écrit dans content/fr/mesure.json (${mesure.textesInedits.length} textes inédits)`);

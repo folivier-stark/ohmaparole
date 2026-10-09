@@ -14,6 +14,7 @@ const ASSETS = [
   "./content/fr/exercises.json",
   "./content/fr/extras.json",
   "./content/fr/louarn.json",
+  "./content/fr/mesure.json",
   "./js/main.js",
   "./js/router.js",
   "./js/version.js",
