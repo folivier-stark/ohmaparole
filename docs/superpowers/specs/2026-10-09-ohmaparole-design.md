@@ -114,7 +114,7 @@ C'est le texte de `expert-contenu.md` §4.1 : présentation pro, puis « Les cha
 
 Une page web **ne peut pas** déclencher de rappel fiable sans serveur (`expert-tech.md` §8).
 
-- **Solution choisie :** un **événement récurrent Google Agenda**, chaque jour à l'heure choisie. Titre : `OhMaParole 5 min, pour : [pourquoi, coupé à 40 caractères]`. Description : lien vers l'appli avec `?go`. Claude peut le créer via le connecteur Google Agenda, **avec l'accord de Fred**.
+- **Solution choisie :** un **événement récurrent Google Agenda**, chaque jour à l'heure choisie. Titre : `OhMaParole 5 min, pour : [pourquoi, coupé à 40 caractères]`. Description : lien vers `#/session/daily`. Claude peut le créer via le connecteur Google Agenda, **avec l'accord de Fred**.
 - **Solution de secours :** une alarme Android posée à la main, avec ce libellé copié depuis l'écran O4.
 - Le manifest déclare **2 raccourcis d'icône** : un appui long donne « Go » ou « Avant un RDV ».
 - ⚠️ **Premier test sur le téléphone :** le lien de l'Agenda doit ouvrir l'appli installée, et pas un onglet Chrome. Si ce n'est pas le cas, l'Agenda ne sert que de rappel et Fred tape sur l'icône.

@@ -28,6 +28,13 @@ test('versions alignées entre sw.js et js/version.js', () => {
   assert.equal(v1, v2);
 });
 
+test('les polices précachées par le SW sont celles de index.html, chargées en CORS', () => {
+  const css = sw.match(/const FONTS_CSS = '([^']+)';/)[1];
+  const link = read('index.html').match(/<link rel="stylesheet" href="(https:\/\/fonts\.googleapis\.com[^"]+)"([^>]*)>/);
+  assert.equal(link[1], css);
+  assert.match(link[2], /\bcrossorigin\b/);
+});
+
 test('manifest valide avec raccourcis', () => {
   const m = JSON.parse(read('manifest.webmanifest'));
   assert.equal(m.short_name, 'OhMaParole');

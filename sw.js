@@ -44,8 +44,32 @@ const ASSETS = [
   "./js/ui/screens/settings.js"
 ];
 
+// Même URL que le <link> de index.html (chargé en crossorigin, donc réponse CORS lisible).
+const FONTS_CSS = 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Lexend:wght@400;600&display=swap';
+
+/** Best effort : ne fait JAMAIS échouer l'install. Sans réseau, les polices se cachent au premier affichage. */
+async function precacheFonts() {
+  try {
+    const c = await caches.open(FONT_CACHE);
+    const css = await fetch(FONTS_CSS, { mode: 'cors' });
+    if (!css.ok) return;
+    const text = await css.clone().text();
+    await c.put(FONTS_CSS, css);
+    const urls = [...text.matchAll(/url\(([^)]+)\)/g)].map((m) => m[1].trim().replace(/^['"]|['"]$/g, ''));
+    await Promise.all(urls.map(async (u) => {
+      const res = await fetch(u, { mode: 'cors' });
+      if (res.ok) await c.put(u, res);
+    }));
+  } catch {
+    // Pas de réseau ou réponse inattendue : on laisse le fetch s'en charger plus tard.
+  }
+}
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))));
+  e.waitUntil(Promise.all([
+    caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))),
+    precacheFonts(),
+  ]));
 });
 
 self.addEventListener('activate', (e) => {
@@ -67,10 +91,12 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     e.respondWith(caches.open(FONT_CACHE).then(async (c) => {
-      const hit = await c.match(req);
+      // ignoreVary : Google Fonts répond « Vary: User-Agent », sinon le précache ne serait jamais servi.
+      const hit = await c.match(req, { ignoreVary: true });
       if (hit) return hit;
       const res = await fetch(req);
-      if (res.ok || res.type === 'opaque') c.put(req, res.clone());
+      // Jamais de réponse opaque : on ne peut pas savoir si c'est une erreur.
+      if (res.ok) c.put(req, res.clone());
       return res;
     }));
     return;

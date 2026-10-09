@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 
 const pad = (n) => String(n).padStart(2, '0');
 const d = new Date();
-const version = `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+const version = `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 
 for (const [file, re] of [['sw.js', /const VERSION = '[^']*';/], ['js/version.js', /export const APP_VERSION = '[^']*';/]]) {
   const src = readFileSync(file, 'utf8');
