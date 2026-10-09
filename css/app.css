@@ -121,3 +121,23 @@ textarea.field { min-height: 96px; resize: vertical; }
 .onb-step { color: var(--text-2); font-size: 15px; margin: 0; }
 .onb > .btn-go { margin-top: auto; }
 .settings section { margin: 24px 0; }
+
+/* Tableau de bord */
+.section-title { margin: 28px 0 4px; }
+.small { font-size: 15px; }
+.axis h3, .sub { font: 600 19px var(--font-title); margin: 0; }
+.sub { margin-top: 18px; }
+.rising { color: var(--primary); font-weight: 700; }
+.goal-num { font: 600 34px var(--font-title); margin: 0; }
+.goal-bar { height: 14px; border-radius: 7px; background: var(--border); overflow: hidden; margin: 8px 0 12px; }
+.goal-fill { height: 100%; background: var(--primary); border-radius: 7px; }
+.goals { list-style: none; padding: 0; margin: 8px 0 0; }
+.goals li { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.chart { display: block; width: 100%; height: auto; margin: 8px 0; }
+.chart-line { fill: none; stroke: var(--primary); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.chart-area { fill: var(--primary); opacity: .12; }
+.chart-dot { fill: var(--primary); }
+.chart-bar { fill: var(--primary); }
+.chart-goal { stroke: var(--accent-text); stroke-width: 2; stroke-dasharray: 6 5; }
+.chart-axis { stroke: var(--border); stroke-width: 1; }
+.chart-label { fill: var(--text-2); font-family: var(--font-body); font-size: 11px; }

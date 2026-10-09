@@ -35,6 +35,7 @@ const ASSETS = [
   "./js/platform/storage.js",
   "./js/platform/wakelock.js",
   "./js/ui/dom.js",
+  "./js/ui/components/chart.js",
   "./js/ui/components/compare.js",
   "./js/ui/components/timer.js",
   "./js/ui/screens/end.js",
