@@ -6,6 +6,7 @@ import { setSpeechEnabled } from '../../platform/speech.js';
 import { setHapticsEnabled } from '../../platform/haptics.js';
 import { storageStatus } from '../../platform/storage.js';
 import { APP_VERSION } from '../../version.js';
+import { createFox } from '../components/fox.js';
 
 const section = (title, ...children) => h('section', {}, h('h2', {}, title), children);
 
@@ -15,9 +16,9 @@ function checkbox(label, checked, onChange) {
 }
 
 export async function render(root, { repo, content }) {
-  const [why, objective, prefs, lastBackupAt] = await Promise.all([
+  const [why, objective, prefs, lastBackupAt, discret] = await Promise.all([
     repo.getMeta('why', ''), repo.getMeta('objective', content.extras.objectifDefaut),
-    repo.getSettings(), repo.getMeta('lastBackupAt', null),
+    repo.getSettings(), repo.getMeta('lastBackupAt', null), repo.getMeta('renardDiscret', false),
   ]);
   const appUrl = location.origin + location.pathname;
 
@@ -98,7 +99,12 @@ export async function render(root, { repo, content }) {
       reminderNote),
     section('Guidage',
       checkbox('Voix de guidage', prefs.voice, async (v) => { prefs.voice = v; setSpeechEnabled(v); await repo.setMeta('settings', prefs); }),
-      checkbox('Vibrations', prefs.vibrate, async (v) => { prefs.vibrate = v; setHapticsEnabled(v); await repo.setMeta('settings', prefs); })),
+      checkbox('Vibrations', prefs.vibrate, async (v) => { prefs.vibrate = v; setHapticsEnabled(v); await repo.setMeta('settings', prefs); }),
+      // G §2.4 : désactivé par défaut. Le stade reste visible, seuls les grands moments parlent.
+      checkbox([
+        createFox({ stage: 'portrait', size: 32, decorative: true }),
+        h('span', {}, 'Renard discret', h('span', { class: 'check-hint' }, 'Il reste là, mais ne parle que pour les grands moments.')),
+      ], discret === true, async (v) => { await repo.setMeta('renardDiscret', v); })),
     section('Sauvegarde',
       backupInfo,
       h('button', { class: 'btn-secondary', onclick: doExport }, 'Sauvegarder mes données'),

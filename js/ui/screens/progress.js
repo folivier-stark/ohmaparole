@@ -6,6 +6,8 @@ import { RDV_QUESTIONS, DONT_KNOW, rdvBoard } from '../../core/rdv.js';
 import { BLOCKS, plural, trendText, frequencyText } from '../../core/texts.js';
 import { createCompare } from '../components/compare.js';
 import { cumulativeChart, monthlyPoints, shortDayMonth } from '../components/chart.js';
+import { souvenirs } from '../../core/louarn.js';
+import { createParcours } from '../components/parcours.js';
 
 const AXIS_CARDS = [
   { key: 'diction', title: 'Diction et élocution', tagline: BLOCKS.articulation.tagline, measure: 'Prises « Clair »', kind: 'Ton ressenti.', empty: 'Réponds à « Ta prise ? » à la fin de l’articulation.' },
@@ -88,17 +90,18 @@ export async function render(root, { repo, content }) {
   const grid = monthGrid(sessions, y, m, today);
   const cleanups = [];
 
-  // Objectif 60 séances + courbe du cumul
+  // Le Parcours en tête (G §4.2, maquette §5.2) : Louarn, le sentier de 18 pierres, les souvenirs obtenus.
+  const parcours = createParcours({
+    dailyCount: daily, program: content.program, souvenirs: souvenirs(sessions, recordings), lines: content.louarn?.repliques ?? null,
+  });
+
+  // Objectif 72 séances : le sentier remplace la barre, et dit déjà « x séances sur 72 » et « À 72… » (G §4.2).
+  // La date estimée et la courbe du cumul restent, sans changement.
   const g = goalProgress(sessions, today, programGoal(content.program));
   const series = cumulativeSeries(sessions, today);
   const goalCard = h('div', { class: 'card' },
     h('h2', {}, `Objectif ${g.goal} séances`),
-    h('p', { class: 'goal-num' }, `${g.done} / ${g.goal}`),
-    h('div', { class: 'goal-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': g.goal, 'aria-valuenow': Math.min(g.done, g.goal) },
-      h('div', { class: 'goal-fill', style: `width:${g.pct}%` })),
-    h('p', {}, g.reached
-      ? 'Objectif atteint ! Prochaine étape : l’anglais.'
-      : `Encore ${plural(g.left, 'séance')}. À ${g.goal}, l’anglais et l’espagnol se débloquent.`),
+    g.reached ? h('p', {}, 'Objectif atteint ! Prochaine étape : l’anglais.') : null,
     g.etaKey
       ? h('p', { class: 'muted' }, `Arrivée estimée : ${longDateFr(g.etaKey)}, à ton rythme actuel.`)
       : g.reached ? null : h('p', { class: 'muted' }, 'La date estimée apparaît après une semaine de pratique.'),
@@ -141,10 +144,11 @@ export async function render(root, { repo, content }) {
 
   root.replaceChildren(h('div', { class: 'progress' },
     h('a', { class: 'back', href: '#/home' }, '‹ Accueil'),
+    parcours,
+    goalCard,
     h('p', { class: 'big-count' }, String(monthDays)),
     h('p', {}, `${monthDays > 1 ? 'jours pratiqués' : 'jour pratiqué'} en ${MONTHS_FR[m - 1]}`),
     h('p', { class: 'muted' }, `${plural(total, 'séance')} depuis le début`),
-    goalCard,
     h('h2', { class: 'section-title' }, 'Tes axes de progrès'),
     axisCards,
     h('h2', { class: 'section-title' }, 'Ce mois-ci'),

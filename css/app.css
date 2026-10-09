@@ -50,7 +50,8 @@ textarea.field { min-height: 96px; resize: vertical; }
 .lines { font-size: 21px; padding-left: 24px; }
 .lines li { margin: 6px 0; }
 .check { display: flex; align-items: center; gap: 12px; min-height: 56px; font-size: 18px; }
-.check input { width: 28px; height: 28px; }
+.check input { width: 28px; height: 28px; flex: none; }
+.check-hint { display: block; font-size: 15px; color: var(--text-2); }
 .back { display: inline-flex; min-height: 56px; align-items: center; text-decoration: none; font-size: 18px; }
 
 /* Accueil */
@@ -141,9 +142,6 @@ textarea.field { min-height: 96px; resize: vertical; }
 .rdv-line p { margin: 2px 0; }
 .rdv-label { font-weight: 700; }
 .src { display: block; font-weight: 400; font-size: 14px; color: var(--text-2); }
-.goal-num { font: 600 34px var(--font-title); margin: 0; }
-.goal-bar { height: 14px; border-radius: 7px; background: var(--border); overflow: hidden; margin: 8px 0 12px; }
-.goal-fill { height: 100%; background: var(--primary); border-radius: 7px; }
 .goals { list-style: none; padding: 0; margin: 8px 0 0; }
 .goals li { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .chart { display: block; width: 100%; height: auto; margin: 8px 0; }
