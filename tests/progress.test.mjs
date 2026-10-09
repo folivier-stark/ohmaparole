@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   dailyCount, totalCount, monthCount, monthGrid, milestonesUpTo, nextMilestone, dueMilestone,
   homeStatus, pendingFeedback, historyIds, lastBloc3, lastConsigneId, recentFeedback,
-  backupDue, whyCheckDue, referenceMilestones,
+  backupDue, whyCheckDue, referenceMilestones, pendingGoalCheck,
 } from '../js/core/progress.js';
 
 const S = (o) => ({ type: 'daily', counted: true, startedAt: 0, endedAt: 0, itemIds: [], ...o });
@@ -132,4 +132,15 @@ test('referenceMilestones', () => {
   assert.deepEqual(referenceMilestones([
     { kind: 'reference', milestone: 1 }, { kind: 'session', milestone: null }, { kind: 'reference', milestone: 7 },
   ]), [1, 7]);
+});
+
+test("pendingGoalCheck : après la réponse « répéter », si un objectif a été saisi", () => {
+  const H = 3600000;
+  const base = { id: 'r', type: 'prerdv', counted: true, startedAt: 0, endedAt: 0, dateKey: '2026-10-09', practicedSec: 90, goal: 'Budget', goalReached: null };
+  assert.equal(pendingGoalCheck([{ ...base, feedback: null }], 2 * H), null);
+  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non' }], 2 * H).id, 'r');
+  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non', goalReached: 'oui' }], 2 * H), null);
+  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non', goalSkipped: true }], 2 * H), null);
+  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non', goal: ' ' }], 2 * H), null);
+  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non' }], 4 * 24 * H), null);
 });

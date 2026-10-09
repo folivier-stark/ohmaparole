@@ -110,3 +110,11 @@ export function backupDue(lastBackupAt, now, total) {
 export function whyCheckDue(total, lastWhyCheckTotal = 0) {
   return total >= 7 && total - lastWhyCheckTotal >= 7;
 }
+
+/** 2e question du retour terrain : l'objectif saisi avant le RDV a-t-il été atteint ? */
+export function pendingGoalCheck(sessions, now) {
+  return sessions
+    .filter((s) => s.type === 'prerdv' && (s.goal ?? '').trim() && s.feedback != null
+      && s.goalReached == null && !s.goalSkipped && now - s.endedAt <= 3 * DAY)
+    .sort((a, b) => b.endedAt - a.endedAt)[0] ?? null;
+}

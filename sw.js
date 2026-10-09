@@ -16,6 +16,7 @@ const ASSETS = [
   "./js/router.js",
   "./js/version.js",
   "./js/core/content-index.js",
+  "./js/core/dashboard.js",
   "./js/core/dates.js",
   "./js/core/pick.js",
   "./js/core/planner.js",

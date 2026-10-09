@@ -35,3 +35,9 @@ export function weekdayMon0(key) {
 export function monthKeyPrefix(year, month) {
   return `${year}-${pad(month)}-`;
 }
+
+/** « 29 novembre 2026 » */
+export function longDateFr(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return `${d} ${MONTHS_FR[m - 1]} ${y}`;
+}
