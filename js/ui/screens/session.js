@@ -60,6 +60,7 @@ export async function render(root, { repo, content, navigate, params }) {
   let takeStep = null;
   let lastTake = Promise.resolve(null);
   let goalInput = null;
+  let lateRating = null;
 
   const player = createPlayer();
   const timer = createTimer();
@@ -131,6 +132,7 @@ export async function render(root, { repo, content, navigate, params }) {
         : h('p', { class: 'say' }, st.text);
     const advance = () => { if (run.index === myIndex && run.status === 'running') apply(next(run, Date.now())); };
     stage.replaceChildren();
+    lateRating = null;
 
     switch (st.kind) {
       case 'guide':
@@ -138,6 +140,14 @@ export async function render(root, { repo, content, navigate, params }) {
       case 'reformulate':
       case 'consigne':
         add(title, lines, text);
+        if (st.block === 'posture') {
+          lateRating = rating('Tu t’es senti posé ?', [['pose', 'Oui'], ['unpeu', 'Un peu'], ['pasencore', 'Pas encore']], (v) => {
+            record.ratings[st.itemId] = v;
+            advance();
+          });
+          lateRating.hidden = true;
+          add(lateRating);
+        }
         speak(st.speak);
         break;
       case 'breathe':
@@ -252,6 +262,7 @@ export async function render(root, { repo, content, navigate, params }) {
     if (finished) return;
     const st = currentStep(run);
     if (st) timer.update(remainingMs(run, now), st.durationSec * 1000);
+    if (lateRating?.hidden && remainingMs(run, Date.now()) <= 20000) lateRating.hidden = false;
   }
 
   async function finish() {

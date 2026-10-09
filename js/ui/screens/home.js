@@ -2,12 +2,13 @@ import { h } from '../dom.js';
 import { dayKey, diffDays } from '../../core/dates.js';
 import {
   homeStatus, monthCount, dailyCount, totalCount, dueMilestone, referenceMilestones,
-  pendingFeedback, backupDue, whyCheckDue, lastBloc3,
+  pendingFeedback, pendingGoalCheck, backupDue, whyCheckDue, lastBloc3,
 } from '../../core/progress.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
 
 const FEEDBACK = [['non', 'Non'], ['une', 'Une fois'], ['plusieurs', 'Plusieurs fois']];
+const GOAL_RESULT = [['oui', 'Oui'], ['partie', 'En partie'], ['non', 'Pas cette fois']];
 
 export async function render(root, { repo, content, navigate }) {
   const now = Date.now();
@@ -24,6 +25,7 @@ export async function render(root, { repo, content, navigate }) {
 
   let card = null;
   const fb = pendingFeedback(sessions, now);
+  const goalCheck = fb ? null : pendingGoalCheck(sessions, now);
   if (fb) {
     card = h('div', { class: 'card' },
       h('p', {}, 'Ton dernier rendez-vous : on t’a fait répéter ?'),
@@ -32,6 +34,16 @@ export async function render(root, { repo, content, navigate }) {
         onclick: async () => { await repo.saveSession({ ...fb, feedback: v }); navigate('/home'); },
       }, label))),
       h('button', { class: 'btn-link', onclick: async () => { await repo.saveSession({ ...fb, feedbackSkipped: true }); navigate('/home'); } }, 'Passer'));
+  } else if (goalCheck) {
+    card = h('div', { class: 'card' },
+      h('p', {}, 'Ton objectif de RDV :'),
+      h('p', { class: 'why' }, `« ${goalCheck.goal} »`),
+      h('p', {}, 'Atteint ?'),
+      h('div', { class: 'row' }, GOAL_RESULT.map(([v, label]) => h('button', {
+        class: 'btn-small',
+        onclick: async () => { await repo.saveSession({ ...goalCheck, goalReached: v }); navigate('/home'); },
+      }, label))),
+      h('button', { class: 'btn-link', onclick: async () => { await repo.saveSession({ ...goalCheck, goalSkipped: true }); navigate('/home'); } }, 'Passer'));
   } else if (why && whyCheckDue(total, lastWhyCheck)) {
     card = h('div', { class: 'card' },
       h('p', {}, 'Ton pourquoi tient toujours ?'),
