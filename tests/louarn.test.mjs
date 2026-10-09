@@ -467,10 +467,16 @@ test('louarn.json : métadonnées alignées sur le code', () => {
   assert.deepEqual(DATA.souvenirs, L.SOUVENIRS.map(({ id, nom }) => ({ id, nom })));
 });
 
-test('louarn.json : les 135 répliques de G §3, recopiées à l’identique', () => {
+/** Répliques reformulées après la relecture finale : « note » est un mot interdit (M §4.2). */
+const REWORDED = {
+  'fin-09': 'Arrêté en route, et ça compte quand même. Je le garde.',
+  'jal-05': 'Rien n’est jugé ici. Juste deux voix et ton oreille.',
+};
+
+test('louarn.json : les 135 répliques de G §3, recopiées à l’identique (sauf 2 reformulées)', () => {
   assert.equal(G_LINES.length, 135);
   const byId = new Map(LINES.map((l) => [l.id, l]));
-  for (const g of G_LINES) assert.deepEqual(byId.get(g.id), g, g.id);
+  for (const g of G_LINES) assert.deepEqual(byId.get(g.id), REWORDED[g.id] ? { ...g, texte: REWORDED[g.id] } : g, g.id);
 });
 
 test('louarn.json : ids uniques, champs et moments connus, conditions du vocabulaire de G §2.3', () => {

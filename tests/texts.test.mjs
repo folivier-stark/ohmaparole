@@ -91,7 +91,9 @@ test('le bloc posture ne promet pas d’inspirer confiance (eval-posture.md §7.
 
 test('frequencyText : « environ X sur 10 (entre a et b) », borné à « 9 ou plus » et « 1 ou moins »', () => {
   assert.equal(frequencyText({ approx: 6, low: 4, high: 8, bound: null }), 'environ 6 sur 10 (entre 4 et 8)');
-  assert.equal(frequencyText(naturalFrequency(10, 10)), 'environ 9 sur 10 ou plus (entre 7 et 10)');
-  assert.equal(frequencyText(naturalFrequency(0, 10)), 'environ 1 sur 10 ou moins (entre 0 et 3)');
+  // Jamais de borne « 10 » ni « 0 » : « au moins » et « au plus ».
+  assert.equal(frequencyText(naturalFrequency(10, 10)), 'environ 9 sur 10 ou plus (au moins 7)');
+  assert.equal(frequencyText(naturalFrequency(0, 10)), 'environ 1 sur 10 ou moins (au plus 3)');
+  for (const [k, n] of [[8, 8], [0, 8], [7, 8], [1, 8], [12, 12], [5, 9]]) assert.doesNotMatch(frequencyText(naturalFrequency(k, n)), /entre \d+ et 10|entre 0 et/, `${k}/${n}`);
   assert.doesNotMatch(frequencyText(naturalFrequency(30, 30)), /10 sur 10/);
 });

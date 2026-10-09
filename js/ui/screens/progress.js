@@ -85,7 +85,10 @@ function axisCard(sessions, today, a, top = null, bottom = null) {
     h('h3', {}, a.title),
     h('p', { class: 'muted small' }, a.tagline),
     top,
-    sum.total
+    sum.total && sum.total < TREND_MIN_ANSWERS
+      // Sous 8 réponses : pas de fréquence, seulement le calibrage (spec V2 §3).
+      ? h('p', { class: 'trend' }, trendText('calibrage', { missing: TREND_MIN_ANSWERS - sum.total }))
+      : sum.total
       ? [
         sum.freq ? freqLine(sum.freq, a.measure) : h('p', {}, 'Pas de réponse ces 4 dernières semaines.'),
         h('p', { class: 'trend' }, trendText(state, { missing: TREND_MIN_ANSWERS - sum.total })),

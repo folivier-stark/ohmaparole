@@ -51,10 +51,18 @@ export function trendText(state, { missing = 0 } = {}) {
   return TREND_TEXT[state] ?? TREND_TEXT.tot;
 }
 
-/** « environ 6 sur 10 (entre 4 et 8) », ou « environ 9 sur 10 ou plus » : jamais 10 ni 0 sur 10. */
+/**
+ * « environ 6 sur 10 (entre 4 et 8) », ou « environ 9 sur 10 ou plus (au moins 7) » : jamais 10 ni 0 sur 10,
+ * ni en valeur ni en borne de la fourchette (« au moins », « au plus »).
+ */
 export function frequencyText({ approx, low, high, bound }) {
   const edge = bound === 'plus' ? ' ou plus' : bound === 'moins' ? ' ou moins' : '';
-  return `environ ${approx} sur 10${edge} (entre ${low} et ${high})`;
+  let range;
+  if (high >= 10 && low <= 0) range = '';
+  else if (high >= 10) range = ` (au moins ${low})`;
+  else if (low <= 0) range = ` (au plus ${high})`;
+  else range = ` (entre ${low} et ${high})`;
+  return `environ ${approx} sur 10${edge}${range}`;
 }
 
 /** voiceDue : voiceCheckDue() de voice-plan.js. Les jalons V1 ne sont plus annoncés (spec V2 §4). */

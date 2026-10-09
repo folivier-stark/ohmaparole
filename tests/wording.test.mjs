@@ -5,7 +5,7 @@ import { RDV_QUESTIONS, DONT_KNOW, RDV_INDICATORS } from '../js/core/rdv.js';
 import { TREND_TEXT, trendText, RDV_NO_RECORD } from '../js/core/texts.js';
 
 // Mots interdits : eval-methodologie.md §4.2 (et pas de pourcentage, pas de « en hausse »).
-const FORBIDDEN = /(?<!\p{L})(score|note|niveau|échec|régression|raté|record|série)s?(?!\p{L})|tu dois|en hausse|%/iu;
+const FORBIDDEN = /(?<!\p{L})(score|note|niveau|échec|régression|ratée?|record|série)s?(?!\p{L})|tu dois|en hausse|%/iu;
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 test('aucun mot interdit dans les textes du tableau et du retour RDV', () => {
@@ -36,4 +36,16 @@ test('le rappel « jamais de vrai RDV enregistré » cite la règle (eval-rdv.md
   assert.match(RDV_NO_RECORD, /226-1/);
   // L'appli garde l'heure de sortie ET les réponses : le rappel ne doit pas dire le contraire.
   assert.match(RDV_NO_RECORD, /Du rendez-vous, l’appli ne garde que l’heure de ta sortie et tes réponses./);
+});
+
+/** Toutes les chaînes d'un JSON de contenu. */
+const strings = (x) => (typeof x === 'string' ? [x] : x && typeof x === 'object' ? Object.values(x).flatMap(strings) : []);
+
+test('aucun mot interdit dans les phrases de motivation, les garde-fous (extras.json) et les répliques de Louarn', () => {
+  const extras = JSON.parse(read('content/fr/extras.json'));
+  // La note clinique cite « bredouillement » en connaissance de cause (expert-contenu.md) : hors du contrôle.
+  const extraTexts = strings({ ...extras, noteClinique: '' });
+  const louarn = JSON.parse(read('content/fr/louarn.json')).repliques.map((l) => l.texte);
+  for (const t of [...extraTexts, ...louarn]) assert.doesNotMatch(t, FORBIDDEN, t);
+  assert.ok(extras.motivations.includes('Une séance sautée ne compte pas. Celle d’aujourd’hui, si.'));
 });
