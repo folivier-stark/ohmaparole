@@ -58,7 +58,7 @@ export function createPointSpontane({ step, saveTake, onReady, onDone }) {
       rec = await startRecording();
     } catch {
       if (my !== token || destroyed) return;
-      show(h('p', {}, 'Sans micro, pas de prise aujourd’hui.'), btn('Continuer', askReady));
+      show(h('p', {}, 'Sans micro, pas de prise aujourd’hui.'), btn('Continuer', next));
       return;
     }
     if (my !== token || destroyed) { rec.cancel(); return; }
@@ -102,15 +102,18 @@ export function createPointSpontane({ step, saveTake, onReady, onDone }) {
     pending = pending.then(() => job).then(() => {});
     job.then((res) => {
       if (destroyed) return;
-      if (res.valid) { askReady(); return; }
+      if (res.valid) { next(); return; }
       const msg = h('p', { class: 'voice-refus' }, refusalText(res.reason));
       if (!retried) {
-        show(msg, btn('Refaire la prise', () => { retried = true; intro(); }), h('button', { class: 'btn-link', onclick: askReady }, 'Continuer sans'));
+        show(msg, btn('Refaire la prise', () => { retried = true; intro(); }), h('button', { class: 'btn-link', onclick: next }, 'Continuer sans'));
       } else {
-        show(msg, btn('Continuer', askReady));
+        show(msg, btn('Continuer', next));
       }
     });
   }
+
+  /** Après la prise : le tap « Si tu avais un RDV demain » (point de la semaine), ou rien (bilan). */
+  const next = () => (step.askReady === false ? done() : askReady());
 
   function askReady() {
     phase = 'ready';
@@ -122,7 +125,7 @@ export function createPointSpontane({ step, saveTake, onReady, onDone }) {
 
   function done() {
     phase = 'done';
-    show(h('p', {}, 'Point enregistré.'), btn('Suivant', () => onDone()));
+    show(h('p', {}, step.doneText ?? 'Point enregistré.'), btn('Suivant', () => onDone()));
   }
 
   function abandon() {

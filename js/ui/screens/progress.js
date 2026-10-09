@@ -10,6 +10,7 @@ import { cumulativeChart, monthlyPoints, shortDayMonth, noiseBand } from '../com
 import { voiceReport, voiceSummary } from '../../core/voice-report.js';
 import { postureSupportLine } from '../../core/live-silence.js';
 import { pointSummary } from '../../core/weekly-point.js';
+import { bilansDone, lastBilanKey, BILAN_EVERY } from '../../core/bilan-plan.js';
 import { souvenirs } from '../../core/louarn.js';
 import { createParcours } from '../components/parcours.js';
 
@@ -53,6 +54,17 @@ function postureBottom(measures) {
   return line ? [h('p', { class: 'label' }, 'Mesuré au micro'), h('p', {}, line), h('p', { class: 'muted small' }, 'Le signal vient à la durée de la consigne : plus long n’est pas mieux.')] : null;
 }
 
+/** « Tes bilans » : le rapport de chaque bilan (figé au bilan), et ses contrôles. */
+function bilansCard(sessions) {
+  const list = [...bilansDone(sessions), ...bilansDone(sessions, 'controle')].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+  return h('div', { class: 'card axis' },
+    h('h3', {}, 'Tes bilans'),
+    list.length
+      ? h('ul', { class: 'goals' }, list.map((b) => h('li', {}, h('a', { href: `#/bilan/${b.id}` },
+        b.bilan.kind === 'controle' ? `Bilan de contrôle · ${shortDayMonth(b.dateKey)}` : `Bilan · séance ${b.sessionNumber} · ${shortDayMonth(b.dateKey)}`))))
+      : h('p', { class: 'muted' }, `Ton premier bilan arrive à la séance ${BILAN_EVERY}. Il remplace la séance du jour, 10 minutes.`));
+}
+
 /** « Ton point de la semaine » (spec V2 §6) : comptes bruts, environ, aucune baisse dite. */
 function pointCard(sessions, measures) {
   const s = pointSummary({ sessions, measures });
@@ -66,7 +78,8 @@ function pointCard(sessions, measures) {
 
 function axisCard(sessions, today, a, top = null, bottom = null) {
   const sum = axisSummary(sessions, a.key, today);
-  const state = rateTrend(sessions, a.key, today);
+  // La tendance repart du dernier bilan (spec V2 §3 et §7).
+  const state = rateTrend(sessions, a.key, today, { sinceKey: lastBilanKey(sessions) });
   const blocks = monthlyBlocks(sessions, a.key, today);
   return h('div', { class: 'card axis' },
     h('h3', {}, a.title),
@@ -103,7 +116,7 @@ function rdvCard(sessions, today) {
   const lines = rdvBoard(sessions, today);
   const goals = recentGoals(sessions, 5);
   // L'indicateur principal de l'axe (eval-methodologie.md §1.3) porte l'état de tendance.
-  const trend = h('p', { class: 'trend' }, trendText(rateTrend(sessions, 'rdv', today),
+  const trend = h('p', { class: 'trend' }, trendText(rateTrend(sessions, 'rdv', today, { sinceKey: lastBilanKey(sessions) }),
     { missing: TREND_MIN_ANSWERS - axisSummary(sessions, 'rdv', today).total }));
   const started = lines.some((l) => l.month1.n);
   return h('div', { class: 'card axis' },
@@ -159,6 +172,7 @@ export async function render(root, { repo, content }) {
     ...AXIS_CARDS.map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
     rdvCard(sessions, today),
     pointCard(sessions, measures),
+    bilansCard(sessions),
   ];
 
   // Calendrier du mois

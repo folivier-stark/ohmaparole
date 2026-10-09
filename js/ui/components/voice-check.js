@@ -38,7 +38,8 @@ export function createVoiceCheck({ step, saveTake, onDone }) {
   let pending = Promise.resolve();
 
   const show = (...nodes) => { if (!destroyed) el.replaceChildren(...nodes.flat(Infinity).filter((n) => n != null)); };
-  const takeLabel = () => `Prise ${take} sur ${total}`;
+  const takeLabel = () => (total === 1 ? step.title : `Prise ${take} sur ${total}`);
+  const minValid = step.minValid ?? 2;
   const btn = (label, onclick, cls = 'btn btn-go') => h('button', { class: cls, onclick }, label);
 
   function intro() {
@@ -46,10 +47,10 @@ export function createVoiceCheck({ step, saveTake, onDone }) {
     show(
       h('h2', { class: 'step-title' }, step.title),
       h('ol', { class: 'lines' }, step.lines.map((l) => h('li', {}, l))),
-      h('p', { class: 'muted small' }, 'Trois lectures du même texte. Avant chacune, 2 secondes de silence. Pas de bip.'),
+      h('p', { class: 'muted small' }, total === 1 ? 'Une lecture. Avant, 2 secondes de silence. Pas de bip.' : 'Trois lectures du même texte. Avant chacune, 2 secondes de silence. Pas de bip.'),
       h('p', { class: 'say small' }, step.text),
-      btn(`${takeLabel()} · Je suis prêt`, startTake));
-    if (!paused) speak('Téléphone posé à 30 centimètres. Lis comme si tu parlais à un prospect.');
+      btn(total === 1 ? 'Je suis prêt' : `${takeLabel()} · Je suis prêt`, startTake));
+    if (!paused && total > 1) speak('Téléphone posé à 30 centimètres. Lis comme si tu parlais à un prospect.');
   }
 
   function ready(message = null) {
@@ -129,7 +130,7 @@ export function createVoiceCheck({ step, saveTake, onDone }) {
     phase = 'result';
     if (res.valid) {
       const hint = res.analysis?.leadSilent === false ? h('p', { class: 'muted small' }, 'La prochaine fois, attends « Lis maintenant » avant de commencer.') : null;
-      if (take >= total) { done(h('p', {}, `Prise ${take} : c’est bon.`), hint); return; }
+      if (take >= total) { done(total > 1 ? h('p', {}, `Prise ${take} : c’est bon.`) : null, hint); return; }
       take += 1;
       retried = false;
       ready(h('div', {}, h('p', {}, `Prise ${take - 1} : c’est bon.`), hint));
@@ -150,13 +151,20 @@ export function createVoiceCheck({ step, saveTake, onDone }) {
 
   function done(...before) {
     phase = 'done';
-    const enough = valid >= 2;
+    const enough = valid >= minValid;
+    let title;
+    let text;
+    if (total === 1) {
+      title = enough ? 'Lecture faite' : 'Pas de lecture valide';
+      text = enough ? 'C’est enregistré.' : 'Pas de lecture valide cette fois : on continue.';
+    } else {
+      title = enough ? 'Mesure faite' : 'Mesure à refaire';
+      text = enough ? `${valid} prises valides sur ${total}. Le résultat est dans Progression.` : 'Pas assez de prises valides cette fois : la mesure revient à ta prochaine séance.';
+    }
     show(
       ...before,
-      h('h2', { class: 'step-title' }, enough ? 'Mesure faite' : 'Mesure à refaire'),
-      h('p', {}, enough
-        ? `${valid} prises valides sur ${total}. Le résultat est dans Progression.`
-        : 'Pas assez de prises valides cette fois : la mesure revient à ta prochaine séance.'),
+      h('h2', { class: 'step-title' }, title),
+      h('p', {}, text),
       btn('Suivant', () => onDone(valid)));
   }
 

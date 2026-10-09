@@ -9,6 +9,7 @@ export const BLOCKS = {
   voix: { label: 'Ta voix', tagline: 'Même texte, pour mesurer le chemin parcouru.' },
   rdv: { label: 'Avant un RDV', tagline: 'Tu y vas dans 90 secondes.' },
   point: { label: 'Ton point de la semaine', tagline: 'Deux minutes pour voir où tu en es.' },
+  bilan: { label: 'Ton bilan', tagline: 'Dix minutes pour voir le chemin parcouru.' },
 };
 
 export const FIN = [
@@ -67,13 +68,18 @@ export function homeLine({ doneToday, comeback, yesterdayOff, voiceDue = null, w
   return variant(motivations, seed);
 }
 
-export function goLabel({ doneToday, comeback }) {
+/** bilan : 'bilan' | 'controle' | null, le bilan du jour (bilan-plan.js), qui remplace la séance. */
+export function goLabel({ doneToday, comeback, bilan = null }) {
+  if (bilan === 'bilan') return 'Ton bilan · 10 min';
+  if (bilan === 'controle') return 'Bilan de contrôle · 3 min';
   if (comeback) return 'Reprendre · 2 min';
   return doneToday ? 'Encore une ? · 5 min' : 'Go · 5 min';
 }
 
 /** point : un point de la semaine est dû (weekly-point.js) ; il prend la place du bloc 3, jamais avec la voix. */
-export function goSubtitle({ comeback, voiceDue = null, bloc3, point = false }) {
+export function goSubtitle({ comeback, voiceDue = null, bloc3, point = false, bilan = null }) {
+  if (bilan === 'bilan') return 'Lectures, écoute, ton ressenti, puis ton rapport';
+  if (bilan === 'controle') return 'Le texte de référence et les textes inédits';
   if (comeback) return 'Échauffement + une prise';
   const third = point && !voiceDue ? 'ton point de la semaine' : bloc3 === 'posture' ? 'posture' : 'écoute';
   return voiceDue ? `Aujourd'hui : mesure de ta voix + ${third}` : `Aujourd'hui : articulation + ${third}`;

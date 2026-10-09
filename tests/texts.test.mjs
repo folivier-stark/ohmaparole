@@ -28,6 +28,10 @@ test('goLabel et goSubtitle', () => {
   assert.equal(goLabel({ doneToday: false, comeback: false }), 'Go · 5 min');
   assert.equal(goLabel({ doneToday: true, comeback: false }), 'Encore une ? · 5 min');
   assert.equal(goLabel({ doneToday: false, comeback: true }), 'Reprendre · 2 min');
+  assert.equal(goLabel({ doneToday: false, comeback: false, bilan: 'bilan' }), 'Ton bilan · 10 min');
+  assert.equal(goLabel({ doneToday: true, comeback: false, bilan: 'controle' }), 'Bilan de contrôle · 3 min');
+  assert.equal(goSubtitle({ comeback: false, voiceDue: 'controle', bloc3: 'ecoute', bilan: 'bilan' }), 'Lectures, écoute, ton ressenti, puis ton rapport');
+  assert.equal(goSubtitle({ comeback: false, voiceDue: null, bloc3: 'ecoute', bilan: 'controle' }), 'Le texte de référence et les textes inédits');
   assert.equal(goSubtitle({ comeback: false, voiceDue: null, bloc3: 'posture' }), "Aujourd'hui : articulation + posture");
   assert.equal(goSubtitle({ comeback: false, voiceDue: 'controle', bloc3: 'ecoute' }), "Aujourd'hui : mesure de ta voix + écoute");
   assert.equal(goSubtitle({ comeback: false, voiceDue: 'calibration', bloc3: 'posture' }), "Aujourd'hui : mesure de ta voix + posture");

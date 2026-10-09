@@ -6,7 +6,9 @@ import {
   remainingMs, practicedMs, isCounted, pausedForMs,
 } from '../../core/session-engine.js';
 import { homeStatus, dailyCount, historyIds, lastBloc3, lastConsigneId } from '../../core/progress.js';
-import { voiceCheckDue } from '../../core/voice-plan.js';
+import { voiceCheckDue, abPair } from '../../core/voice-plan.js';
+import { bilanDue, bilanControlDue, buildBilanPlan, buildBilanControlPlan } from '../../core/bilan-plan.js';
+import { buildBilanReport, controlResult } from '../../core/evaluation.js';
 import { weeklyPointDue, pickPointItem, spontaneRows } from '../../core/weekly-point.js';
 import { postureMicConfig, latestCalibration } from '../../core/live-silence.js';
 import { BLOCKS, PAS_COMPTE, RDV_NO_RECORD } from '../../core/texts.js';
@@ -17,7 +19,9 @@ import { createVoiceCheck } from '../components/voice-check.js';
 import { createPostureMic } from '../components/posture-mic.js';
 import { createPointSpontane } from '../components/point-spontane.js';
 import { createPointEclair } from '../components/point-eclair.js';
-import { takeRows } from '../../audio/voice-measure.js';
+import { takeRows, bilanContext } from '../../audio/voice-measure.js';
+import { createForme, createEcouteBilan, createGrille } from '../components/bilan-steps.js';
+import { createCompare } from '../components/compare.js';
 import { startRecording } from '../../audio/recorder.js';
 import { createPlayer } from '../../audio/player.js';
 import { speak, stopSpeaking, canSpeak } from '../../platform/speech.js';
@@ -49,16 +53,25 @@ export async function render(root, { repo, content, navigate, params }) {
   } else {
     const done = dailyCount(sessions);
     const n = done + 1;
-    // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
-    const voiceCheck = voiceCheckDue(recordings, done, { todayKey: today });
     const comeback = homeStatus(sessions, today).comeback;
-    // Point de la semaine (spec V2 §6) : jamais avec une mesure de voix, il est alors reporté.
-    const due = weeklyPointDue({ sessionNumber: n, sessions, voiceCheck, comeback });
-    const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions, sessionNumber: n, dateKey: today }) : null;
-    plan = buildDailyPlan({
-      content, history: historyIds(sessions), sessionNumber: n, dateKey: today, lastBloc3: lastBloc3(sessions),
-      voiceCheck, comeback, weeklyPoint: due && item ? { ...due, item } : null,
-    });
+    // Bilan (séances 24, 48, 72) ou bilan de contrôle : ils remplacent la séance du jour (spec V2 §7).
+    const bilan = bilanDue({ sessionNumber: n, sessions, comeback });
+    const control = bilan || comeback ? null : bilanControlDue({ sessionNumber: n, sessions });
+    if (bilan) {
+      plan = buildBilanPlan({ content, sessionNumber: n, dateKey: today, index: bilan.index, seed: `${today}#${n}#${t0}` });
+    } else if (control) {
+      plan = buildBilanControlPlan({ content, sessionNumber: n, dateKey: today, control });
+    } else {
+      // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
+      const voiceCheck = voiceCheckDue(recordings, done, { todayKey: today });
+      // Point de la semaine (spec V2 §6) : jamais avec une mesure de voix, il est alors reporté.
+      const due = weeklyPointDue({ sessionNumber: n, sessions, voiceCheck, comeback });
+      const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions, sessionNumber: n, dateKey: today }) : null;
+      plan = buildDailyPlan({
+        content, history: historyIds(sessions), sessionNumber: n, dateKey: today, lastBloc3: lastBloc3(sessions),
+        voiceCheck, comeback, weeklyPoint: due && item ? { ...due, item } : null,
+      });
+    }
   }
 
   const record = {
@@ -67,6 +80,7 @@ export async function render(root, { repo, content, navigate, params }) {
     sessionNumber: plan.sessionNumber ?? null, cycle: plan.cycle ?? null, programWeek: plan.week ?? null,
     bloc3: plan.bloc3 ?? null, milestone: null, voiceCheck: plan.voiceCheck ?? null, voiceTakes: 0, itemIds: plan.itemIds,
     weeklyPoint: plan.weeklyPoint ? { ...plan.weeklyPoint, ready: null, criteres: null } : null,
+    bilan: plan.bilan ? { ...plan.bilan, forme: null, faits: null, grille: null, ab: null, proche: null, report: null, controlDueAt: null } : null,
     consigneId: plan.consigneId ?? null, ratings: {}, recordingIds: [], goal: '', feedback: null,
   };
 
@@ -152,11 +166,11 @@ export async function render(root, { repo, content, navigate, params }) {
   }
 
   /** Une prise du point de la semaine (spontanée ou réplique éclair), gardée pour la réécoute. */
-  async function savePointTake(kindOf, { blob, mimeType, durationMs }) {
+  async function savePointTake(kindOf, { blob, mimeType, durationMs }, extra = {}) {
     const meta = {
       id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: kindOf, milestone: null,
       sessionNumber: plan.sessionNumber, itemId: plan.weeklyPoint?.itemId ?? null, sessionId: record.id,
-      mimeType, durationMs, sizeBytes: blob.size,
+      mimeType, durationMs, sizeBytes: blob.size, ...extra,
     };
     await repo.saveRecording(meta, blob);
     record.recordingIds.push(meta.id);
@@ -164,7 +178,37 @@ export async function render(root, { repo, content, navigate, params }) {
     return meta;
   }
 
-  const ctlBase = (c) => { blockCtl = c; settles.push(c.settled); add(c.el); };
+  const ctlBase = (c) => { blockCtl = c; if (c.settled) settles.push(c.settled); add(c.el); };
+
+  /** Une lecture du bilan : la référence (prise « reference », voiceCheck 'bilan') ou un texte inédit. */
+  async function saveBilanTake(st, { blob, mimeType, durationMs, res }) {
+    const ref = st.role === 'ref';
+    const meta = {
+      id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: ref ? 'reference' : 'bilan', milestone: null,
+      voiceCheck: ref ? 'bilan' : null, sessionNumber: plan.sessionNumber, itemId: st.itemId, sessionId: record.id,
+      forme: record.bilan.forme, bilanIndex: record.bilan.index, mimeType, durationMs, sizeBytes: blob.size,
+    };
+    await repo.saveRecording(meta, blob);
+    record.recordingIds.push(meta.id);
+    await repo.saveMeasures(takeRows(meta, 'bilan', res));
+    await save();
+  }
+
+  async function abStep() {
+    const box = h('div', { class: 'bilan-step' }, h('h2', { class: 'step-title' }, 'À l’aveugle'));
+    add(box);
+    const myIndex = run.index;
+    const pair = abPair(await repo.listRecordings());
+    if (run.index !== myIndex) return;
+    const go = h('button', { class: 'btn btn-go', onclick: () => { if (run.index === myIndex) apply(next(run, Date.now())); } }, 'Suivant');
+    const cmp = pair ? await createCompare({
+      repo, a: pair.a, b: pair.b, labelA: `ta première lecture (${pair.labelA})`, labelB: 'aujourd’hui',
+      onChoice: (r) => { record.bilan.ab = r.id === pair.b.id ? 'recent' : 'first'; save(); },
+    }) : null;
+    if (run.index !== myIndex) { cmp?.destroy(); return; }
+    if (cmp) { box.append(h('p', { class: 'muted' }, 'Ta toute première lecture du texte de référence, et celle d’aujourd’hui.'), cmp.el); blockCtl = { el: cmp.el, destroy: cmp.destroy }; } else box.append(h('p', { class: 'muted' }, 'Pas encore de lecture plus ancienne à comparer.'));
+    box.append(go);
+  }
 
   function renderHeader(st) {
     const b = BLOCKS[st.block];
@@ -229,6 +273,35 @@ export async function render(root, { repo, content, navigate, params }) {
           onReady: (v) => { record.weeklyPoint.ready = v; save(); },
           onDone: advance,
         }));
+        break;
+      case 'forme':
+        ctlBase(createForme({ onPick: (v) => { record.bilan.forme = v; save(); advance(); } }));
+        break;
+      case 'lecture':
+        stopSpeaking();
+        ctlBase(createVoiceCheck({ step: st, saveTake: (take) => saveBilanTake(st, take), onDone: advance }));
+        break;
+      case 'presentation':
+        stopSpeaking();
+        ctlBase(createPointSpontane({
+          step: { ...st, doneText: 'C’est enregistré.' },
+          saveTake: async (take) => {
+            const meta = await savePointTake('bilan', take, { itemId: 'presentation', forme: record.bilan.forme, bilanIndex: record.bilan.index });
+            await repo.saveMeasures(spontaneRows(meta, take.res, { kind: 'bilan', context: bilanContext(meta) }));
+          },
+          onReady: () => {},
+          onDone: advance,
+        }));
+        break;
+      case 'ecoute-bilan':
+        ctlBase(createEcouteBilan({ step: st, onFaits: (f) => { record.bilan.faits = f; save(); }, onDone: advance }));
+        break;
+      case 'grille':
+        ctlBase(createGrille({ step: st, onGrille: (g) => { record.bilan.grille = g; save(); }, onDone: advance }));
+        break;
+      case 'ab':
+        stopSpeaking();
+        abStep().catch((e) => console.error(e));
         break;
       case 'eclair':
         stopSpeaking();
@@ -373,8 +446,21 @@ export async function render(root, { repo, content, navigate, params }) {
         requestPersist();
       }
     } catch (e) { console.error(e); }
-    if (plan.type === 'prerdv') await showRdvEnd();
-    else if (record.counted) navigate(`/end/${record.id}`, { replace: true });
+    if (plan.type === 'prerdv') { await showRdvEnd(); return; }
+    if (record.bilan && record.counted) {
+      // Rapport du bilan, figé dans la séance (M §4.6) ; résultat du bilan de contrôle (M §4.4).
+      try {
+        const [ss, recs, ms] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
+        if (record.bilan.kind === 'controle') record.bilan.result = controlResult({ control: record, measures: ms });
+        else {
+          const report = buildBilanReport({ session: record, sessions: ss, recordings: recs, measures: ms, todayKey: today, lines: content.mesure ?? {} });
+          record.bilan.report = report;
+          record.bilan.controlDueAt = report.controlDueAt;
+        }
+        await save();
+      } catch (e) { console.error(e); }
+      navigate(`/bilan/${record.id}`, { replace: true });
+    } else if (record.counted) navigate(`/end/${record.id}`, { replace: true });
     else navigate('/home', { replace: true });
   }
 

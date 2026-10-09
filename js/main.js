@@ -10,6 +10,8 @@ import * as session from './ui/screens/session.js';
 import * as end from './ui/screens/end.js';
 import * as progress from './ui/screens/progress.js';
 import * as settings from './ui/screens/settings.js';
+import * as bilan from './ui/screens/bilan.js';
+import * as proche from './ui/screens/proche.js';
 import { scheduleReanalysis } from './audio/voice-measure.js';
 
 /** Syllabes des textes lus aux bilans (texte de référence et inédits A, B, C). */
@@ -41,7 +43,7 @@ async function boot() {
   const prefs = await repo.getSettings();
   setSpeechEnabled(prefs.voice);
   setHapticsEnabled(prefs.vibrate);
-  defineRoutes({ onboarding, home, session, end, progress, settings }, { repo, content });
+  defineRoutes({ onboarding, home, session, end, progress, settings, bilan, proche }, { repo, content });
   if (!(await repo.getMeta('onboarded', false)) && !location.hash.startsWith('#/onboarding')) {
     history.replaceState(null, '', '#/onboarding');
   }

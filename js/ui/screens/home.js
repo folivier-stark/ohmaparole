@@ -3,6 +3,7 @@ import { dayKey, diffDays } from '../../core/dates.js';
 import { homeStatus, monthCount, dailyCount, totalCount, backupDue, whyCheckDue, lastBloc3 } from '../../core/progress.js';
 import { voiceCheckDue } from '../../core/voice-plan.js';
 import { weeklyPointDue } from '../../core/weekly-point.js';
+import { bilanDue, bilanControlDue, bilanAnnouncement } from '../../core/bilan-plan.js';
 import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv, RDV_EXIT_WINDOW_MS } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
@@ -14,7 +15,7 @@ import { createBulle, createFox } from '../components/fox.js';
  * Louarn sur l'accueil (G §2.1-2.2, maquette §5.1) : le stade en pied à 96 px et sa bulle, à la place de
  * la ligne de contexte. Carte affichée : il se tait. Mode discret ou aucune réplique : la ligne d'origine.
  */
-async function louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now }) {
+async function louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now, announce }) {
   const daily = dailyCount(sessions);
   const stage = stageFor(daily).id;
   const plain = () => h('div', { class: 'lo-bulle-wrap' }, createFox({ stage, size: 96 }),
@@ -31,6 +32,8 @@ async function louarnLine({ repo, content, sessions, card, status, due, why, see
       stade6Plus: stade6PlusToday({ dailyCount: daily, shownOn, todayKey: today }),
     });
     if (card) return silent();
+    // Bilan annoncé la veille et le jour même (spec V2 §7), y compris en mode discret : c'est une information.
+    if (announce) return createBulle({ texte: announce, stage, humeur: humeurFor('jalon') });
     if (!b) return plain();
     if (b.moment === 'pourquoi') return createBulle({ texte: `Ton pourquoi : « ${why} »`, stage });
     const lines = content.louarn?.repliques;
@@ -79,8 +82,12 @@ export async function render(root, { repo, content, navigate }) {
     repo.getMeta('lastBackupAt', null), repo.getMeta('lastWhyCheck', 0),
   ]);
   const status = homeStatus(sessions, today);
-  // Mesure de la voix due à la prochaine séance (calibration ou contrôle), à la place des jalons V1.
-  const due = voiceCheckDue(recordings, dailyCount(sessions), { todayKey: today });
+  const n = dailyCount(sessions) + 1;
+  // Bilan du jour (il remplace la séance) ou, sinon, mesure de la voix due (calibration ou contrôle).
+  const bilanToday = bilanDue({ sessionNumber: n, sessions, comeback: status.comeback }) ? 'bilan'
+    : !status.comeback && bilanControlDue({ sessionNumber: n, sessions }) ? 'controle' : null;
+  const due = bilanToday ? null : voiceCheckDue(recordings, dailyCount(sessions), { todayKey: today });
+  const announce = bilanAnnouncement({ dailyCount: dailyCount(sessions), doneToday: status.doneToday });
   const total = totalCount(sessions);
   const seed = diffDays('2026-01-01', today);
 
@@ -100,7 +107,7 @@ export async function render(root, { repo, content, navigate }) {
         h('button', { class: 'btn-small', onclick: async () => { await repo.setMeta('lastWhyCheck', total); navigate('/settings'); } }, 'Je le reformule')));
   }
 
-  const louarn = await louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now });
+  const louarn = await louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now, announce });
 
   root.replaceChildren(h('div', { class: 'home' },
     h('header', { class: 'top' },
@@ -112,10 +119,10 @@ export async function render(root, { repo, content, navigate }) {
     h('div', { class: 'actions' },
       exit ? exitButton(exit, { repo, navigate }) : null,
       h('a', { class: status.doneToday ? 'btn btn-calm' : 'btn btn-go', href: '#/session/daily' },
-        h('span', {}, goLabel(status)),
+        h('span', {}, goLabel({ ...status, bilan: bilanToday })),
         h('small', {}, goSubtitle({
-          comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)),
-          point: Boolean(weeklyPointDue({ sessionNumber: dailyCount(sessions) + 1, sessions, voiceCheck: due, comeback: status.comeback })),
+          comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)), bilan: bilanToday,
+          point: !bilanToday && Boolean(weeklyPointDue({ sessionNumber: n, sessions, voiceCheck: due, comeback: status.comeback })),
         }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));
   return () => rdvCard?.destroy();

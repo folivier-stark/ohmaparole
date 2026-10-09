@@ -3,8 +3,11 @@ import { createPlayer } from '../../audio/player.js';
 
 const secs = (r) => `${Math.round(r.durationMs / 1000)} s`;
 
-/** Écoute A/B à l'aveugle de deux lectures du MÊME texte. Retourne null si un audio manque. */
-export async function createCompare({ repo, a, b, labelA, labelB }) {
+/**
+ * Écoute A/B à l'aveugle de deux lectures du MÊME texte. Retourne null si un audio manque.
+ * onChoice(rec) : la prise choisie (a ou b), une fois révélée.
+ */
+export async function createCompare({ repo, a, b, labelA, labelB, onChoice = null }) {
   const [blobA, blobB] = await Promise.all([repo.getAudio(a.id), repo.getAudio(b.id)]);
   if (!blobA || !blobB) return null;
   const flip = Math.random() < 0.5;
@@ -19,6 +22,7 @@ export async function createCompare({ repo, a, b, labelA, labelB }) {
   function reveal(chosen) {
     choices.remove();
     result.textContent = `A = ${first.label} (${secs(first.rec)}) · B = ${second.label} (${secs(second.rec)}). Tu as choisi ${chosen.label}.`;
+    onChoice?.(chosen.rec);
   }
   const el = h('div', { class: 'card' },
     h('p', {}, 'Même texte, deux voix, ordre au hasard.'),
