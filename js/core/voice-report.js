@@ -25,7 +25,8 @@ import { mdc95 } from './stats.js';
 import { plural } from './texts.js';
 
 export const STORED_METRICS = Object.freeze([...READING_KEYS, 'cvDebit']);
-export const MEASURE_KINDS = Object.freeze(['calibration', 'controle', 'reference-v1']);
+/** 'bilan' : lectures du bilan (texte de référence et inédits A, B, C), le texte dans context.texte. */
+export const MEASURE_KINDS = Object.freeze(['calibration', 'controle', 'reference-v1', 'bilan']);
 /** Mesures dont on calcule ligne de base et verdict. cvDebit n'en fait pas partie : il est en observation. */
 export const REPORT_METRICS = Object.freeze(['debit', 'pausePct', 'debitArticulatoire', 'pauseCount']);
 const Z80 = 1.28;

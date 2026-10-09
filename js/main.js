@@ -12,6 +12,12 @@ import * as progress from './ui/screens/progress.js';
 import * as settings from './ui/screens/settings.js';
 import { scheduleReanalysis } from './audio/voice-measure.js';
 
+/** Syllabes des textes lus aux bilans (texte de référence et inédits A, B, C). */
+const syllablesOf = (content) => Object.fromEntries([
+  [content.reference.id, content.reference.syllabes],
+  ...(content.mesure?.textesInedits ?? []).map((t) => [t.id, t.syllabes]),
+]);
+
 const inSession = () => location.hash.startsWith('#/session');
 
 function registerServiceWorker() {
@@ -42,7 +48,7 @@ async function boot() {
   startRouter();
   if (await repo.getMeta('persistAsked', false)) requestPersist();
   // Mesures de la voix manquantes ou d'un ancien algorithme : recalculées depuis les Blobs, en arrière-plan.
-  scheduleReanalysis({ repo, syllables: content.reference.syllabes });
+  scheduleReanalysis({ repo, syllables: content.reference.syllabes, syllablesById: syllablesOf(content) });
 }
 
 boot().catch((err) => {

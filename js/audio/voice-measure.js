@@ -16,7 +16,7 @@ import { measureRows } from '../core/voice-report.js';
 import { spontaneRows } from '../core/weekly-point.js';
 
 /** Mesures recalculables depuis un Blob : la réanalyse ne touche qu'elles (jamais les mesures en direct). */
-export const REANALYZED_KINDS = Object.freeze(['calibration', 'controle', 'reference-v1', 'spontane']);
+export const REANALYZED_KINDS = Object.freeze(['calibration', 'controle', 'reference-v1', 'spontane', 'bilan']);
 
 /**
  * Décode et mesure une prise : D §4 rangs 1 à 3, plus le CV de débit (en observation, jamais affiché).
@@ -59,10 +59,21 @@ export function takeRows(recording, kind, res) {
   if (typeof a.leadSilent === 'boolean') context.leadSilent = a.leadSilent;
   if (Number.isFinite(a.noiseDb)) context.noiseDb = a.noiseDb;
   if (Number.isFinite(a.speechDb)) context.speechDb = a.speechDb;
+  Object.assign(context, bilanContext(recording));
   return measureRows({
     recording, kind, metrics: res.metrics, cv: res.cv, snrDb: res.analysis?.snrDb ?? null,
     algoVersion: res.analysis?.algoVersion ?? ALGO_VERSION, context,
   });
+}
+
+/** Contexte d'une prise de bilan : le texte lu, la forme du jour et le numéro du bilan (spec V2 §7). */
+export function bilanContext(recording) {
+  const out = {};
+  if (recording?.bilanIndex == null) return out;
+  out.texte = recording.itemId;
+  out.bilan = recording.bilanIndex;
+  if (recording.forme) out.forme = recording.forme;
+  return out;
 }
 
 const defaultSleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
@@ -74,13 +85,13 @@ const defaultSleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
  * en cours : le décodage ne doit pas gêner l'enregistrement).
  * @returns {Promise<{ analyzed: number, refused: number, missing: number, deleted: number }>}
  */
-export async function reanalyzeReferences({ repo, syllables, shouldWait = () => false, sleep = defaultSleep, waitMs = 5000 }) {
+export async function reanalyzeReferences({ repo, syllables, syllablesById = {}, shouldWait = () => false, sleep = defaultSleep, waitMs = 5000 }) {
   const [recordings, measures, refusedMeta] = await Promise.all([
     repo.listRecordings(), repo.listMeasures(), repo.getMeta('measures.refused', null),
   ]);
   const refused = refusedMeta?.algoVersion === ALGO_VERSION ? [...refusedMeta.ids] : [];
   const done = new Set(measures.filter((m) => m.algoVersion === ALGO_VERSION).map((m) => m.recordingId));
-  const todo = recordings.filter((r) => (r.kind === 'reference' || r.kind === 'spontane') && !done.has(r.id) && !refused.includes(r.id));
+  const todo = recordings.filter((r) => ['reference', 'spontane', 'bilan'].includes(r.kind) && !done.has(r.id) && !refused.includes(r.id));
   const out = { analyzed: 0, refused: 0, missing: 0, deleted: 0 };
 
   for (const rec of todo) {
@@ -91,11 +102,14 @@ export async function reanalyzeReferences({ repo, syllables, shouldWait = () => 
       out.missing += 1;
       continue;
     }
-    const spontane = rec.kind === 'spontane';
-    const kind = spontane ? 'spontane' : rec.voiceCheck ?? 'reference-v1';
-    const res = await measureTake(blob, spontane ? null : syllables, spontane || rec.voiceCheck ? {} : V1_REFERENCE_OPTIONS);
+    // Parole spontanée : celle du point de la semaine, ou « se présenter » au bilan (sans texte, ni débit).
+    const spontane = rec.kind === 'spontane' || (rec.kind === 'bilan' && rec.itemId === 'presentation');
+    const kind = rec.kind === 'bilan' ? 'bilan' : spontane ? 'spontane' : rec.voiceCheck ?? 'reference-v1';
+    const syll = rec.kind === 'bilan' ? syllablesById[rec.itemId] ?? null : syllables;
+    const res = await measureTake(blob, spontane ? null : syll, spontane || rec.voiceCheck || rec.kind === 'bilan' ? {} : V1_REFERENCE_OPTIONS);
     if (res.valid) {
-      await repo.saveMeasures(spontane ? spontaneRows(rec, res) : takeRows(rec, kind, res));
+      const rows = spontane ? spontaneRows(rec, res, { kind, context: bilanContext(rec) }) : takeRows(rec, kind, res);
+      await repo.saveMeasures(rows);
       out.analyzed += 1;
     } else {
       refused.push(rec.id);
@@ -119,11 +133,11 @@ let running = null;
  * Lance la réanalyse en arrière-plan, après le premier affichage, sans bloquer l'accueil. Une seule à la
  * fois. Pendant une séance (#/session), elle attend.
  */
-export function scheduleReanalysis({ repo, syllables, delayMs = 3000 }) {
+export function scheduleReanalysis({ repo, syllables, syllablesById = {}, delayMs = 3000 }) {
   if (running) return running;
   const inSession = () => typeof location !== 'undefined' && location.hash.startsWith('#/session');
   running = new Promise((resolve) => { setTimeout(resolve, delayMs); })
-    .then(() => reanalyzeReferences({ repo, syllables, shouldWait: inSession }))
+    .then(() => reanalyzeReferences({ repo, syllables, syllablesById, shouldWait: inSession }))
     .catch((e) => { console.error(e); return null; })
     .finally(() => { running = null; });
   return running;

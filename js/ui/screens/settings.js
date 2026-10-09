@@ -46,7 +46,10 @@ export async function render(root, { repo, content }) {
         const r = await importBackup(p);
         backupInfo.textContent = `Restauré : ${r.sessions} séances, ${r.recordings} enregistrements.`;
         // Une sauvegarde v1 n'a pas de mesures de la voix : elles se recalculent depuis les Blobs.
-        scheduleReanalysis({ repo, syllables: content.reference.syllabes, delayMs: 0 });
+        scheduleReanalysis({
+          repo, syllables: content.reference.syllabes, delayMs: 0,
+          syllablesById: Object.fromEntries((content.mesure?.textesInedits ?? []).map((t) => [t.id, t.syllabes])),
+        });
       } catch (e) {
         backupInfo.textContent = e.message;
       }

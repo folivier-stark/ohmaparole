@@ -65,7 +65,7 @@ export function pickPointItem({ format, mesure, sessions = [], sessionNumber, da
  * Lignes `measures` d'une prise de parole spontanée (A) : % de pause, nombre de pauses (au moins 250 ms)
  * et durée de parole. Ni débit ni syllabes : il n'y a pas de texte (M §3.2). kind 'spontane'.
  */
-export function spontaneRows(recording, res) {
+export function spontaneRows(recording, res, { kind = 'spontane', context = {} } = {}) {
   const a = res?.analysis;
   if (!res?.valid || !a || !isNum(a.D) || a.D <= 0) return [];
   const algoVersion = a.algoVersion ?? ALGO_VERSION;
@@ -76,12 +76,12 @@ export function spontaneRows(recording, res) {
     sessionId: recording.sessionId ?? null,
     dateKey: recording.dateKey,
     createdAt: recording.createdAt,
-    kind: 'spontane',
+    kind,
     metric,
     value: metric === 'pausePctSpontane' ? Math.round(value * 1000) / 1000 : value,
     algoVersion,
     snrDb: isNum(a.snrDb) ? a.snrDb : null,
-    context: typeof a.leadSilent === 'boolean' ? { leadSilent: a.leadSilent } : {},
+    context: { ...(typeof a.leadSilent === 'boolean' ? { leadSilent: a.leadSilent } : {}), ...context },
   }));
 }
 

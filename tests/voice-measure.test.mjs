@@ -100,8 +100,12 @@ test('reanalyzeReferences : références V1 en reference-v1, prises de voix à l
     { id: 'gone', kind: 'reference', milestone: 14, sessionId: 's3', dateKey: '2026-09-15', createdAt: 7 },
     { id: 'sp', kind: 'spontane', sessionId: 's4', dateKey: '2026-10-21', createdAt: 8 },
     { id: 'ecl', kind: 'eclair', sessionId: 's5', dateKey: '2026-10-25', createdAt: 9 },
+    // Bilan : la référence (prise « reference » + voiceCheck 'bilan'), un inédit, la présentation.
+    { id: 'bref', kind: 'reference', voiceCheck: 'bilan', itemId: 'fr.REF1', sessionId: 'b1', dateKey: '2026-10-30', createdAt: 10, forme: 'moyen', bilanIndex: 1 },
+    { id: 'bta', kind: 'bilan', itemId: 'fr.TA', sessionId: 'b1', dateKey: '2026-10-30', createdAt: 11, forme: 'moyen', bilanIndex: 1 },
+    { id: 'bpr', kind: 'bilan', itemId: 'presentation', sessionId: 'b1', dateKey: '2026-10-30', createdAt: 12, forme: 'moyen', bilanIndex: 1 },
   ];
-  const audio = { j1: 'v1', c1: 'v2', k1: 'v2', noisy: 'bruit', art: 'v2', part: 'v2', sp: 'v2', ecl: 'v2' };
+  const audio = { j1: 'v1', c1: 'v2', k1: 'v2', noisy: 'bruit', art: 'v2', part: 'v2', sp: 'v2', ecl: 'v2', bref: 'v2', bta: 'v2', bpr: 'v2' };
   const old = [{ id: 'c1:debit:acoustics-1', recordingId: 'c1', metric: 'debit', value: 5, algoVersion: 'acoustics-1', kind: 'calibration' }];
   // k1 a déjà ses mesures à la version courante (prise de la séance) : pas de nouveau décodage.
   const current = [{ id: `k1:debit:${ALGO_VERSION}`, recordingId: 'k1', metric: 'debit', value: 6.2, algoVersion: ALGO_VERSION, kind: 'controle' }];
@@ -109,10 +113,15 @@ test('reanalyzeReferences : références V1 en reference-v1, prises de voix à l
   const live = [{ id: 's9:posture:fr.P23:1:silenceTenu', recordingId: null, metric: 'silenceTenu', value: 8, algoVersion: 'live-1', kind: 'posture' }];
   const repo = fakeRepo({ recordings, audio, measures: [...old, ...current, ...live] });
 
-  const r = await reanalyzeReferences({ repo, syllables: SYLL });
-  assert.deepEqual(r, { analyzed: 3, refused: 1, missing: 1, deleted: 1 });
+  const r = await reanalyzeReferences({ repo, syllables: SYLL, syllablesById: { 'fr.TA': 87 } });
+  assert.deepEqual(r, { analyzed: 6, refused: 1, missing: 1, deleted: 1 });
+  const bil = repo.store.measures.filter((m) => m.kind === 'bilan');
+  assert.deepEqual([...new Set(bil.map((m) => m.context.texte))].sort(), ['fr.REF1', 'fr.TA', 'presentation']);
+  assert.ok(bil.every((m) => m.context.forme === 'moyen' && m.context.bilan === 1), 'forme du jour dans le contexte de toutes les mesures du bilan');
+  assert.ok(bil.some((m) => m.context.texte === 'presentation' && m.metric === 'pausePctSpontane'));
+  assert.equal(bil.some((m) => m.context.texte === 'presentation' && m.metric === 'debit'), false);
   const kinds = Object.fromEntries(repo.store.measures.filter((m) => m.metric === 'debit').map((m) => [m.recordingId, m.kind]));
-  assert.deepEqual(kinds, { j1: 'reference-v1', c1: 'calibration', k1: 'controle' });
+  assert.deepEqual(kinds, { j1: 'reference-v1', c1: 'calibration', k1: 'controle', bref: 'bilan', bta: 'bilan' });
   // Parole spontanée : % de pause, sans débit (pas de texte). La réplique éclair n'est pas réanalysée.
   assert.deepEqual(repo.store.measures.filter((m) => m.recordingId === 'sp').map((m) => m.metric).sort(), ['dureeSpontane', 'pauseCountSpontane', 'pausePctSpontane']);
   assert.equal(repo.store.measures.some((m) => m.recordingId === 'ecl'), false);
@@ -125,7 +134,7 @@ test('reanalyzeReferences : références V1 en reference-v1, prises de voix à l
   assert.ok(repo.store.measures.some((m) => m.recordingId === 'j1' && m.metric === 'pausePct'));
 
   // Deuxième démarrage : rien à refaire, les refus ne sont pas retentés (l'audio absent, si).
-  const again = await reanalyzeReferences({ repo, syllables: SYLL });
+  const again = await reanalyzeReferences({ repo, syllables: SYLL, syllablesById: { 'fr.TA': 87 } });
   assert.deepEqual(again, { analyzed: 0, refused: 0, missing: 1, deleted: 0 });
 });
 

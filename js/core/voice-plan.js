@@ -15,7 +15,9 @@ import { SESSION_MIN_TAKES } from './acoustics.js';
 
 export const CALIBRATION_SESSIONS = 3;
 export const CONTROL_EVERY = 6;
-export const VOICE_KINDS = Object.freeze(['calibration', 'controle']);
+/** 'bilan' : la lecture du texte de référence d'un bilan (une prise, spec V2 §7) compte comme une mesure de voix. */
+export const VOICE_KINDS = Object.freeze(['calibration', 'controle', 'bilan']);
+const MIN_TAKES = { calibration: SESSION_MIN_TAKES, controle: SESSION_MIN_TAKES, bilan: 1 };
 
 const norm = (n) => (Number.isFinite(Number(n)) && Number(n) > 0 ? Math.floor(Number(n)) : 0);
 const isReference = (r) => r && r.kind === 'reference';
@@ -41,7 +43,7 @@ export function voiceChecks(recordings) {
     const g = groups.get(key);
     g.takes += 1;
     g.recordingIds.push(r.id);
-    g.valid = g.takes >= SESSION_MIN_TAKES;
+    g.valid = g.takes >= MIN_TAKES[g.kind];
   }
   return [...groups.values()];
 }
@@ -88,6 +90,7 @@ export function voiceJalonTag(session, recordings) {
   const checks = validChecks(recordings);
   const own = checks.find((c) => c.sessionId === session.id);
   if (!own) return null;
+  if (own.kind === 'bilan') return null; // le bilan a son propre écran
   if (own.kind === 'calibration') return checks[0] === own ? 'jalon:1' : null;
   if (checks.find((c) => c.kind === 'controle') === own) return 'jalon:7';
   const n = own.sessionNumber ?? norm(session.sessionNumber);
@@ -120,8 +123,9 @@ export function voiceTimeline(recordings) {
     .map((r) => ({ label: `J${r.milestone}`, dateKey: r.dateKey, createdAt: r.createdAt ?? 0, kind: 'reference-v1' }));
   let cal = 0;
   let ctl = 0;
+  let bil = 0;
   const checks = validChecks(recordings).map((c) => ({
-    label: c.kind === 'calibration' ? `Départ ${++cal}` : `Contrôle ${++ctl}`,
+    label: c.kind === 'calibration' ? `Départ ${++cal}` : c.kind === 'bilan' ? `Bilan ${++bil}` : `Contrôle ${++ctl}`,
     dateKey: c.dateKey, createdAt: c.createdAt, kind: c.kind,
   }));
   return [...v1, ...checks].sort(byCreated);
