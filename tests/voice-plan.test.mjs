@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CALIBRATION_SESSIONS, CONTROL_EVERY, voiceChecks, voiceCheckDue, calibrationRemaining, sessionsUntilControl,
-  voiceJalonTag, voiceEchoes, voiceTimeline, abPair,
+  voiceJalonTag, voiceEchoes, voiceTimeline, abPair, todayReferenceTake,
 } from '../js/core/voice-plan.js';
 
 let seq = 0;
@@ -153,4 +153,12 @@ test('abPair : le premier enregistrement de référence contre le plus récent, 
   assert.equal(p.b.id, later.at(-1).id);
   assert.deepEqual([p.labelA, p.labelB], ['10/10', '22/10']);
   assert.equal(abPair([{ ...j1, kind: 'partial' }, { ...j1, id: 'x', kind: 'session', dateKey: '2026-10-01' }]), null);
+});
+
+test('todayReferenceTake : la dernière prise d’une mesure de voix valide du jour, ou null', () => {
+  const recs = [...calibrated(), ...check('k1', 'controle', 18, '2026-10-18'), ...check('bad', 'controle', 19, '2026-10-19', 1)];
+  assert.equal(todayReferenceTake(recs, '2026-10-18').sessionId, 'k1');
+  assert.equal(todayReferenceTake(recs, '2026-10-18').id, recs.filter((r) => r.sessionId === 'k1').at(-1).id);
+  assert.equal(todayReferenceTake(recs, '2026-10-19'), null, 'une mesure refusée ne compte pas');
+  assert.equal(todayReferenceTake(recs, '2026-10-30'), null);
 });

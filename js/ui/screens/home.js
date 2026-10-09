@@ -84,10 +84,14 @@ export async function render(root, { repo, content, navigate }) {
   const status = homeStatus(sessions, today);
   const n = dailyCount(sessions) + 1;
   // Bilan du jour (il remplace la séance) ou, sinon, mesure de la voix due (calibration ou contrôle).
-  const bilanToday = bilanDue({ sessionNumber: n, sessions, comeback: status.comeback }) ? 'bilan'
-    : !status.comeback && bilanControlDue({ sessionNumber: n, sessions }) ? 'controle' : null;
+  const contentReady = Boolean(content.mesure?.textesInedits?.length);
+  const bilanNext = bilanDue({ sessionNumber: n, sessions, comeback: status.comeback, contentReady });
+  const bilanToday = bilanNext ? 'bilan'
+    : !status.comeback && bilanControlDue({ sessionNumber: n, sessions, contentReady }) ? 'controle' : null;
   const due = bilanToday ? null : voiceCheckDue(recordings, dailyCount(sessions), { todayKey: today });
-  const announce = bilanAnnouncement({ dailyCount: dailyCount(sessions), doneToday: status.doneToday });
+  // La veille (séance d'avant faite) ou le jour même ; rien un jour de reprise ; un bilan reporté est annoncé.
+  const pendingToday = sessions.some((x) => x.dateKey === today && x.bilan?.kind === 'bilan' && x.bilan.complete === false);
+  const announce = bilanAnnouncement({ due: bilanNext, doneToday: status.doneToday, pendingToday });
   const total = totalCount(sessions);
   const seed = diffDays('2026-01-01', today);
 
@@ -122,7 +126,7 @@ export async function render(root, { repo, content, navigate }) {
         h('span', {}, goLabel({ ...status, bilan: bilanToday })),
         h('small', {}, goSubtitle({
           comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)), bilan: bilanToday,
-          point: !bilanToday && Boolean(weeklyPointDue({ sessionNumber: n, sessions, voiceCheck: due, comeback: status.comeback })),
+          point: !bilanToday && contentReady && Boolean(weeklyPointDue({ sessionNumber: n, sessions, voiceCheck: due, comeback: status.comeback })),
         }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));
   return () => rdvCard?.destroy();

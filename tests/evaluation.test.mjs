@@ -178,7 +178,16 @@ test('deuxième bilan (séance 48) : inédits comparés texte par texte, confirm
     bilan: { kind: 'bilan', index: 2, order: ['fr.TC', 'fr.TA', 'fr.TB'], forme: 'moyen', faits: [true, true, true], grille: GRILLE, ab: 'recent' },
   };
   const sessions = [...sessionsUpTo(24, [b1]), ...Array.from({ length: 23 }, (_, i) => ({ id: `e${i}`, type: 'daily', counted: true, sessionNumber: 25 + i, dateKey: day(25 + i), startedAt: 25 + i, ratings: { x: 'clair' } })), b2];
-  const r = buildBilanReport({ session: b2, sessions, recordings: [], measures: [...measures, ...more], todayKey: day(48), lines: MESURE });
+  // Lectures enregistrées des deux bilans : 5 paires réelles possibles pour le proche.
+  const recs = [
+    rec('first', 'reference', 'fr.REF1', 'c1', 1, { voiceCheck: 'calibration' }),
+    rec('r1', 'reference', 'fr.REF1', 'b1', 10, { voiceCheck: 'bilan' }), rec('a1', 'bilan', 'fr.TA', 'b1', 11), rec('bb1', 'bilan', 'fr.TB', 'b1', 12), rec('c1x', 'bilan', 'fr.TC', 'b1', 13),
+    rec('r2', 'reference', 'fr.REF1', 'b2', 20, { voiceCheck: 'bilan' }), rec('a2', 'bilan', 'fr.TA', 'b2', 21), rec('bb2', 'bilan', 'fr.TB', 'b2', 22), rec('c2', 'bilan', 'fr.TC', 'b2', 23),
+  ];
+  const r = buildBilanReport({ session: b2, sessions, recordings: recs, measures: [...measures, ...more], todayKey: day(48), lines: MESURE });
+  // Sans enregistrements comparables (moins de 5 paires), l'écoute par un proche n'est pas proposée.
+  const noRecs = buildBilanReport({ session: b2, sessions, recordings: [], measures: [...measures, ...more], todayKey: day(48), lines: MESURE });
+  assert.notEqual(noRecs.actionKind, 'proche');
   assert.equal(r.first, false);
   assert.equal(r.realisme, null, 'une seule fois, au premier bilan');
   const d = r.axes[0];
@@ -209,6 +218,16 @@ test('le proche alimente la posture (présence vocale) et la diction (compréhen
   assert.equal(r.axes[2].state, 'probable', '5 sur 6 : tendance');
   assert.match(r.axes[2].lines[0], /5 paires sur 6/);
   assert.ok(r.axes[0].others.some((o) => o.family === 'proche' && o.sign === 1));
+});
+
+test('bilan qui réutilise la lecture du contrôle du jour : paires du proche et détail', () => {
+  const { measures, b1 } = firstBilan(6.0);
+  b1.bilan.refRecordingId = 'k1-2';
+  const r = buildBilanReport({ session: b1, sessions: sessionsUpTo(24, [b1]), recordings: [], measures, todayKey: day(24), lines: MESURE });
+  assert.ok(r.axes[0].detail.some((l) => /Texte de référence aujourd’hui/.test(l)), 'la lecture réutilisée est montrée');
+  const recs = [rec('k1-2', 'reference', 'fr.REF1', 'k1', 5, { voiceCheck: 'controle' }), rec('old', 'reference', 'fr.REF1', 'c1', 1, { voiceCheck: 'calibration' })];
+  const pairs = prochePairs({ recordings: recs, bilans: [b1], current: b1, seed: 's' });
+  assert.ok(pairs.some((p) => p.newerId === 'k1-2' && !p.leurre), 'la référence du jour sert de prise récente');
 });
 
 test('controlResult : la baisse se confirme, ou ne se retrouve pas', () => {

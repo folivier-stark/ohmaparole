@@ -112,7 +112,12 @@ function rng(seed) {
 const REF_ID = 'fr.REF1';
 const isRefTake = (r) => r.kind === 'reference';
 /** La prise d'un texte dans une séance de bilan (la référence est une prise `reference` + voiceCheck 'bilan'). */
-function takeOf(recordings, sessionId, textId) {
+function takeOf(recordings, sessionId, textId, refRecordingId = null) {
+  // Bilan du jour d'un contrôle de voix : il a réutilisé la lecture du contrôle (pas deux lectures le même jour).
+  if (textId === REF_ID && refRecordingId) {
+    const reused = (recordings ?? []).find((r) => r.id === refRecordingId);
+    if (reused) return reused;
+  }
   return (recordings ?? []).filter((r) => r.sessionId === sessionId
     && (textId === REF_ID ? isRefTake(r) && r.voiceCheck === 'bilan' : r.kind === 'bilan' && r.itemId === textId))
     .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)).at(-1) ?? null;
@@ -132,12 +137,12 @@ export function prochePairs({ recordings = [], bilans = [], current, seed }) {
   const firstRef = [...recordings].filter(isRefTake).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0] ?? null;
   const candidates = [];
   const olderSets = [
-    (t) => (t === REF_ID ? firstRef : past[0] ? takeOf(recordings, past[0].id, t) : null),
-    (t) => (past.length ? takeOf(recordings, past.at(-1).id, t) : null),
+    (t) => (t === REF_ID ? firstRef : past[0] ? takeOf(recordings, past[0].id, t, past[0].bilan?.refRecordingId) : null),
+    (t) => (past.length ? takeOf(recordings, past.at(-1).id, t, past.at(-1).bilan?.refRecordingId) : null),
   ];
   for (const pick of olderSets) {
     for (const t of texts) {
-      const newer = takeOf(recordings, current.id, t);
+      const newer = takeOf(recordings, current.id, t, current.bilan?.refRecordingId);
       const older = pick(t);
       if (!newer || !older || older.id === newer.id) continue;
       if (candidates.some((c) => c.olderId === older.id && c.newerId === newer.id)) continue;
@@ -145,7 +150,7 @@ export function prochePairs({ recordings = [], bilans = [], current, seed }) {
     }
   }
   const real = candidates.slice(0, 6);
-  const decoy = takeOf(recordings, current.id, REF_ID) ?? takeOf(recordings, current.id, texts[1]);
+  const decoy = takeOf(recordings, current.id, REF_ID, current.bilan?.refRecordingId) ?? takeOf(recordings, current.id, texts[1]);
   const all = decoy ? [...real, { textId: decoy.itemId ?? REF_ID, olderId: decoy.id, newerId: decoy.id, leurre: true }] : real;
   const rand = rng(seed);
   for (let i = all.length - 1; i > 0; i--) {
@@ -171,6 +176,12 @@ export function procheScore({ pairs = [], answers = {} }) {
     presence: newer('q2'),
     leurrePrudence: Boolean(d && ['A', 'B'].includes(d.q1) && ['A', 'B'].includes(d.q2)),
   };
+}
+
+/** L'écoute par un proche n'est proposée qu'avec au moins 5 paires réelles comparables. */
+function procheAvailable(recordings, sessions, session) {
+  const bilans = [...bilansDone(sessions).filter((b) => b.id !== session.id), session];
+  return prochePairs({ recordings, bilans, current: session, seed: 'disponible' }).filter((p) => !p.leurre).length >= 5;
 }
 
 // ─── Rapport de bilan (M §4.6) ───────────────────────────────────────────────────────────
@@ -264,7 +275,10 @@ function dictionAxis({ session, prev, sessions, measures, todayKey, sinceKey, fo
       ? `${textLabel(x.textId)} : environ ${formatDecimal(x.value)} syll/s (bilan précédent : ${formatDecimal(x.previous)}).`
       : `${textLabel(x.textId)} : environ ${formatDecimal(x.value)} syll/s (première mesure).`);
   }
-  const refToday = textValue(measures, session.id, REF_ID);
+  const refId = session.bilan?.refRecordingId;
+  const refToday = refId
+    ? median((measures ?? []).filter((m) => m.recordingId === refId && m.metric === 'debit' && isNum(m.value)).map((m) => m.value))
+    : textValue(measures, session.id, REF_ID);
   if (isNum(refToday)) detail.push(`Texte de référence aujourd’hui (une prise) : environ ${formatDecimal(refToday)} syll/s.`);
   let extraState = null;
   if (verdict.state === 'pas-encore' && index >= 3 && d && isNum(d.mdc)) {
@@ -387,7 +401,7 @@ export function buildBilanReport({ session, sessions = [], recordings = [], meas
   if (dictionDown) {
     action = `Un bilan de contrôle dans ${CONTROL_AFTER} séances : 3 minutes, le texte de référence et les textes inédits.`;
     actionKind = 'controle';
-  } else if (index >= 2 && !session.bilan?.proche) {
+  } else if (index >= 2 && !session.bilan?.proche && procheAvailable(recordings, sessions, session)) {
     action = 'Fais écouter tes lectures à un proche, à l’aveugle : 10 minutes, il tient ton téléphone.';
     actionKind = 'proche';
   } else {

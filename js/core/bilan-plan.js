@@ -21,9 +21,25 @@ export const BILAN_CONSIGNE = 'Même pièce, assis, téléphone posé à 30 cm. 
 
 const isCountedDaily = (s) => s?.counted === true && (s.type === 'daily' || s.type === 'comeback');
 
+/** Étapes de MESURE d'un bilan : sans elles, un bilan arrêté en route n'est pas consommé (il reste dû). */
+export const BILAN_MEASURE_KINDS = Object.freeze(['lecture', 'presentation', 'ecoute-bilan', 'grille']);
+
+/** Un bloc par étape (« Passer ce bloc » ne saute que l'étape en cours) : 'bilan:forme', 'bilan:lecture:2'… */
+export const isBilanBlock = (block) => typeof block === 'string' && (block === 'bilan' || block.startsWith('bilan:'));
+
+/**
+ * Un bilan est fait s'il est allé au bout (même en passant des étapes : la mesure ne doit pas devenir une
+ * dette), ou si, arrêté en route, toutes ses étapes de mesure ont été faites. done : indices des étapes faites.
+ */
+export function bilanComplete({ steps = [], done = [], finished = false }) {
+  if (finished) return true;
+  const set = new Set(done);
+  return steps.every((st, i) => !BILAN_MEASURE_KINDS.includes(st.kind) || set.has(i));
+}
+
 /** Les bilans faits (séances comptées), dans l'ordre. kind 'bilan' ou 'controle'. */
 export function bilansDone(sessions, kind = 'bilan') {
-  return (sessions ?? []).filter((s) => isCountedDaily(s) && s.bilan?.kind === kind)
+  return (sessions ?? []).filter((s) => isCountedDaily(s) && s.bilan?.kind === kind && s.bilan.complete !== false)
     .sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
 }
 
@@ -31,8 +47,8 @@ export function bilansDone(sessions, kind = 'bilan') {
  * Le bilan dû à la séance n, ou null : dû à la séance 24k, reporté aux 3 séances suivantes après une reprise.
  * @returns {{ index: number }|null}
  */
-export function bilanDue({ sessionNumber, sessions = [], comeback = false }) {
-  if (comeback) return null;
+export function bilanDue({ sessionNumber, sessions = [], comeback = false, contentReady = true }) {
+  if (comeback || !contentReady) return null;
   const n = Number(sessionNumber) || 0;
   const index = Math.floor(n / BILAN_EVERY);
   if (index < 1 || n - index * BILAN_EVERY > 3) return null;
@@ -40,7 +56,8 @@ export function bilanDue({ sessionNumber, sessions = [], comeback = false }) {
 }
 
 /** Le bilan de contrôle dû (5 séances après un bilan qui a montré une baisse), ou null. */
-export function bilanControlDue({ sessionNumber, sessions = [] }) {
+export function bilanControlDue({ sessionNumber, sessions = [], contentReady = true }) {
+  if (!contentReady) return null;
   const last = bilansDone(sessions).at(-1);
   const at = last?.bilan?.controlDueAt;
   if (!Number.isFinite(at) || (Number(sessionNumber) || 0) < at) return null;
@@ -48,10 +65,14 @@ export function bilanControlDue({ sessionNumber, sessions = [] }) {
   return { of: last.id, index: last.bilan.index, order: last.bilan.order };
 }
 
-/** Bulle de l'accueil : la veille (séance d'avant faite aujourd'hui) et le jour même. */
-export function bilanAnnouncement({ dailyCount = 0, doneToday = false } = {}) {
-  const next = (Number(dailyCount) || 0) + 1;
-  if (next % BILAN_EVERY !== 0) return null;
+/**
+ * Bulle de l'accueil. due : bilanDue() de la PROCHAINE séance, reprise du jour comprise (un jour de reprise,
+ * pas d'annonce ; un bilan reporté est annoncé). La veille = la séance d'avant faite aujourd'hui.
+ */
+export function bilanAnnouncement({ due = null, doneToday = false, pendingToday = false } = {}) {
+  if (!due) return null;
+  // Commencé aujourd'hui et arrêté avant la fin : il reste dû, tout de suite.
+  if (pendingToday) return 'Ton bilan reste à faire : 10 min, quand tu veux.';
   return doneToday ? 'Demain : ton bilan de 10 min.' : 'Aujourd’hui : ton bilan de 10 min.';
 }
 
@@ -72,17 +93,21 @@ export function ineditOrder(ids, seed) {
   return out;
 }
 
-const lecture = (it, role, durationSec) => ({
-  block: 'bilan', kind: 'lecture', role, durationSec, untimed: true, itemId: it.id, title: it.titre ?? 'Texte de référence',
+const lecture = (it, role, durationSec, i) => ({
+  block: `bilan:lecture:${i}`, kind: 'lecture', role, durationSec, untimed: true, itemId: it.id, title: it.titre ?? 'Texte de référence',
   lines: [BILAN_CONSIGNE], text: it.texte, syllables: it.syllabes, takes: 1, minValid: 1, voiceCheck: 'bilan', speak: null,
 });
 
-function readingSteps(content, order) {
+/**
+ * Forme du jour, texte de référence et inédits. reuseRefId : une mesure de voix valide a déjà eu lieu ce
+ * jour-là, sa lecture sert au bilan (pas deux lectures du texte de référence le même jour).
+ */
+function readingSteps(content, order, reuseRefId = null) {
   const byId = new Map((content.mesure?.textesInedits ?? []).map((t) => [t.id, t]));
   return [
-    { block: 'bilan', kind: 'forme', durationSec: 5, untimed: true, title: 'Ta forme du jour', lines: [], text: null, speak: null },
-    lecture({ ...content.reference, titre: 'Texte de référence' }, 'ref', 60),
-    ...order.map((id) => lecture(byId.get(id), 'inedit', 35)),
+    { block: 'bilan:forme', kind: 'forme', durationSec: 5, untimed: true, title: 'Ta forme du jour', lines: [], text: null, speak: null },
+    ...(reuseRefId ? [] : [lecture({ ...content.reference, titre: 'Texte de référence' }, 'ref', 60, 0)]),
+    ...order.map((id, i) => lecture(byId.get(id), 'inedit', 35, i + 1)),
   ];
 }
 
@@ -91,40 +116,40 @@ function readingSteps(content, order) {
  * tiré pour la séance, se présenter en 60 s, écoute du passage réservé (ER1 au bilan 1, ER2 au 2, ER3 au 3),
  * auto-grille des 6 compétences, A/B à l'aveugle. Le rapport vient à la fin (écran du bilan).
  */
-export function buildBilanPlan({ content, sessionNumber, dateKey, index, seed = `${dateKey}#${sessionNumber}` }) {
+export function buildBilanPlan({ content, sessionNumber, dateKey, index, seed = `${dateKey}#${sessionNumber}`, reuseRefId = null }) {
   const mesure = content.mesure ?? {};
   const order = ineditOrder((mesure.textesInedits ?? []).map((t) => t.id), seed);
   const ecoutes = mesure.ecoutesReservees ?? [];
   const ecoute = ecoutes[(index - 1) % Math.max(1, ecoutes.length)];
   const steps = [
-    ...readingSteps(content, order),
+    ...readingSteps(content, order, reuseRefId),
     {
-      block: 'bilan', kind: 'presentation', durationSec: 60, untimed: true, itemId: 'presentation', title: 'Se présenter',
+      block: 'bilan:presentation', kind: 'presentation', durationSec: 60, untimed: true, itemId: 'presentation', title: 'Se présenter',
       lines: ['60 secondes, sans texte : présente-toi à un artisan qui ne te connaît pas.'],
       question: 'Présente-toi à un artisan qui ne te connaît pas.', maxSec: 60, askReady: false, text: null, speak: null,
     },
     {
-      block: 'bilan', kind: 'ecoute-bilan', durationSec: 90, untimed: true, itemId: ecoute?.id ?? null, title: ecoute?.titre ?? 'Écoute',
+      block: 'bilan:ecoute', kind: 'ecoute-bilan', durationSec: 90, untimed: true, itemId: ecoute?.id ?? null, title: ecoute?.titre ?? 'Écoute',
       lines: ['Écoute. Le texte reste caché. Puis reformule à voix haute, 30 secondes.'], passage: ecoute?.passage ?? '',
       faitsCles: ecoute?.faitsCles ?? [], text: null, speak: null,
     },
     {
-      block: 'bilan', kind: 'grille', durationSec: 60, untimed: true, title: 'Tes gestes en RDV', lines: [],
+      block: 'bilan:grille', kind: 'grille', durationSec: 60, untimed: true, title: 'Tes gestes en RDV', lines: [],
       items: mesure.autoGrille ?? [], text: null, speak: null,
     },
-    { block: 'bilan', kind: 'ab', durationSec: 60, untimed: true, title: 'À l’aveugle', lines: [], text: null, speak: null },
+    { block: 'bilan:ab', kind: 'ab', durationSec: 60, untimed: true, title: 'À l’aveugle', lines: [], text: null, speak: null },
   ];
   return {
     type: 'daily', sessionNumber, bloc3: null, voiceCheck: null, weeklyPoint: null,
-    bilan: { kind: 'bilan', index, order, seed }, itemIds: [], steps,
+    bilan: { kind: 'bilan', index, order, seed, refRecordingId: reuseRefId }, itemIds: [], steps,
   };
 }
 
 /** Le bilan de contrôle (3 min) : forme du jour, texte de référence et inédits, dans l'ordre du bilan. */
-export function buildBilanControlPlan({ content, sessionNumber, dateKey, control }) {
+export function buildBilanControlPlan({ content, sessionNumber, dateKey, control, reuseRefId = null }) {
   return {
     type: 'daily', sessionNumber, bloc3: null, voiceCheck: null, weeklyPoint: null,
-    bilan: { kind: 'controle', of: control.of, index: control.index, order: control.order, dateKey },
-    itemIds: [], steps: readingSteps(content, control.order),
+    bilan: { kind: 'controle', of: control.of, index: control.index, order: control.order, dateKey, refRecordingId: reuseRefId },
+    itemIds: [], steps: readingSteps(content, control.order, reuseRefId),
   };
 }

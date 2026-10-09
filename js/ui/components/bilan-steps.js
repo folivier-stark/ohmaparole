@@ -23,11 +23,19 @@ export function createEcouteBilan({ step, onFaits, onDone }) {
   const el = h('div', { class: 'bilan-step' });
   let timer = null;
   let destroyed = false;
-  const intro = () => show(el,
-    h('h2', { class: 'step-title' }, 'Écoute'),
-    h('p', {}, step.lines[0]),
-    btn('Écouter', listen));
+  let phase = 'intro'; // intro | lecture | reformulation | faits
+  let left = 30;
+  let interrupted = false;
+  const intro = (again = false) => {
+    phase = 'intro';
+    show(el,
+      h('h2', { class: 'step-title' }, 'Écoute'),
+      again ? h('p', { class: 'muted small' }, 'Écoute interrompue : on la reprend depuis le début.') : null,
+      h('p', {}, step.lines[0]),
+      btn(again ? 'Réécouter' : 'Écouter', listen));
+  };
   function listen() {
+    phase = 'lecture';
     if (canSpeak()) {
       show(el, h('p', { class: 'muted' }, 'Le téléphone lit. Le texte reste caché.'));
       speak(step.passage, {
@@ -40,19 +48,27 @@ export function createEcouteBilan({ step, onFaits, onDone }) {
     h('p', { class: 'muted' }, 'Lis une seule fois. Le texte disparaît ensuite.'),
     h('p', { class: 'say small' }, step.passage),
     btn('J’ai lu', reformulate));
+  // Rien n'est enregistré pendant la reformulation : pas de point rouge, un repère neutre.
+  let count = null;
   function reformulate() {
-    let left = 30;
-    const count = h('p', { class: 'rec' }, `À toi : reformule à voix haute · ${left} s`);
+    phase = 'reformulation';
+    left = 30;
+    count = h('p', { class: 'cue' }, `À toi : reformule à voix haute · ${left} s`);
     show(el, count, h('p', { class: 'muted' }, 'Ce que tu as compris, avec tes mots.'), btn('J’ai fini', reveal, 'btn-secondary'));
+    tickFrom();
+  }
+  function tickFrom() {
+    clearInterval(timer);
     timer = setInterval(() => {
       left -= 1;
-      count.textContent = `À toi : reformule à voix haute · ${Math.max(0, left)} s`;
+      if (count) count.textContent = `À toi : reformule à voix haute · ${Math.max(0, left)} s`;
       if (left <= 0) reveal();
     }, 1000);
   }
   function reveal() {
     clearInterval(timer);
     timer = null;
+    phase = 'faits';
     const boxes = step.faitsCles.map(() => h('input', { type: 'checkbox' }));
     show(el,
       h('p', { class: 'label' }, 'Les faits clés'),
@@ -63,7 +79,16 @@ export function createEcouteBilan({ step, onFaits, onDone }) {
   intro();
   return {
     el,
-    pause() { stopSpeaking(); },
+    /** Pause : la lecture s'arrête (elle sera réécoutée) ; le compteur de la reformulation s'arrête aussi. */
+    pause() {
+      stopSpeaking();
+      if (phase === 'lecture') interrupted = true;
+      if (phase === 'reformulation') { clearInterval(timer); timer = null; }
+    },
+    resume() {
+      if (interrupted) { interrupted = false; intro(true); return; }
+      if (phase === 'reformulation' && !timer) tickFrom();
+    },
     destroy() { destroyed = true; clearInterval(timer); stopSpeaking(); },
   };
 }
@@ -78,7 +103,8 @@ export function createGrille({ step, onGrille, onDone }) {
   let i = 0;
   function render() {
     const it = step.items[i];
-    if (!it) { onGrille({ ...answers }); onDone(); return; }
+    // Fin (ou grille vide) : jamais d'appel synchrone pendant la mise en place de l'étape (enterStep).
+    if (!it) { queueMicrotask(() => { onGrille({ ...answers }); onDone(); }); return; }
     const pick = (v) => { answers[it.id] = v; i += 1; render(); };
     show(el,
       h('p', { class: 'label' }, `Tes gestes en RDV · ${i + 1} sur ${step.items.length}`),

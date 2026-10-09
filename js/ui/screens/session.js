@@ -6,8 +6,8 @@ import {
   remainingMs, practicedMs, isCounted, pausedForMs,
 } from '../../core/session-engine.js';
 import { homeStatus, dailyCount, historyIds, lastBloc3, lastConsigneId } from '../../core/progress.js';
-import { voiceCheckDue, abPair } from '../../core/voice-plan.js';
-import { bilanDue, bilanControlDue, buildBilanPlan, buildBilanControlPlan } from '../../core/bilan-plan.js';
+import { voiceCheckDue, abPair, todayReferenceTake } from '../../core/voice-plan.js';
+import { bilanDue, bilanControlDue, buildBilanPlan, buildBilanControlPlan, bilanComplete, isBilanBlock } from '../../core/bilan-plan.js';
 import { buildBilanReport, controlResult } from '../../core/evaluation.js';
 import { weeklyPointDue, pickPointItem, spontaneRows } from '../../core/weekly-point.js';
 import { postureMicConfig, latestCalibration } from '../../core/live-silence.js';
@@ -55,12 +55,16 @@ export async function render(root, { repo, content, navigate, params }) {
     const n = done + 1;
     const comeback = homeStatus(sessions, today).comeback;
     // Bilan (séances 24, 48, 72) ou bilan de contrôle : ils remplacent la séance du jour (spec V2 §7).
-    const bilan = bilanDue({ sessionNumber: n, sessions, comeback });
-    const control = bilan || comeback ? null : bilanControlDue({ sessionNumber: n, sessions });
+    // Pas de bilan sans le pack « Mesure » (textes inédits, écoutes réservées, auto-grille).
+    const contentReady = Boolean(content.mesure?.textesInedits?.length);
+    const bilan = bilanDue({ sessionNumber: n, sessions, comeback, contentReady });
+    const control = bilan || comeback ? null : bilanControlDue({ sessionNumber: n, sessions, contentReady });
+    // Une mesure de voix déjà faite aujourd'hui : le bilan réutilise sa lecture (pas deux le même jour).
+    const reuseRefId = todayReferenceTake(recordings, today)?.id ?? null;
     if (bilan) {
-      plan = buildBilanPlan({ content, sessionNumber: n, dateKey: today, index: bilan.index, seed: `${today}#${n}#${t0}` });
+      plan = buildBilanPlan({ content, sessionNumber: n, dateKey: today, index: bilan.index, seed: `${today}#${n}#${t0}`, reuseRefId });
     } else if (control) {
-      plan = buildBilanControlPlan({ content, sessionNumber: n, dateKey: today, control });
+      plan = buildBilanControlPlan({ content, sessionNumber: n, dateKey: today, control, reuseRefId });
     } else {
       // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
       const voiceCheck = voiceCheckDue(recordings, done, { todayKey: today });
@@ -80,7 +84,7 @@ export async function render(root, { repo, content, navigate, params }) {
     sessionNumber: plan.sessionNumber ?? null, cycle: plan.cycle ?? null, programWeek: plan.week ?? null,
     bloc3: plan.bloc3 ?? null, milestone: null, voiceCheck: plan.voiceCheck ?? null, voiceTakes: 0, itemIds: plan.itemIds,
     weeklyPoint: plan.weeklyPoint ? { ...plan.weeklyPoint, ready: null, criteres: null } : null,
-    bilan: plan.bilan ? { ...plan.bilan, forme: null, faits: null, grille: null, ab: null, proche: null, report: null, controlDueAt: null } : null,
+    bilan: plan.bilan ? { ...plan.bilan, forme: null, faits: null, grille: null, ab: null, proche: null, report: null, controlDueAt: null, complete: false } : null,
     consigneId: plan.consigneId ?? null, ratings: {}, recordingIds: [], goal: '', feedback: null,
   };
 
@@ -98,6 +102,8 @@ export async function render(root, { repo, content, navigate, params }) {
   // Contrôleur du pas interactif en cours (bloc voix, point de la semaine, micro de la posture).
   let blockCtl = null;
   const settles = [];
+  // Étapes de bilan faites (indices) : un bilan arrêté en route reste dû, sauf si toutes ses mesures sont faites.
+  const doneSteps = new Set();
 
   const player = createPlayer();
   const timer = createTimer();
@@ -211,7 +217,8 @@ export async function render(root, { repo, content, navigate, params }) {
   }
 
   function renderHeader(st) {
-    const b = BLOCKS[st.block];
+    // Un bloc par étape de bilan ('bilan:lecture:2') : le libellé est celui du bilan.
+    const b = BLOCKS[st.block] ?? (isBilanBlock(st.block) ? BLOCKS.bilan : BLOCKS.echauffement);
     const idx = blocks.indexOf(st.block);
     header.replaceChildren(
       h('div', { class: 'segments' }, blocks.map((_, i) => h('span', { class: i < idx ? 'seg done' : i === idx ? 'seg on' : 'seg' }))),
@@ -227,6 +234,7 @@ export async function render(root, { repo, content, navigate, params }) {
       : Array.isArray(st.text) ? h('ul', { class: 'say-list' }, st.text.map((t) => h('li', {}, t)))
         : h('p', { class: 'say' }, st.text);
     const advance = () => { if (run.index === myIndex && run.status === 'running') apply(next(run, Date.now())); };
+    const advanceDone = () => { doneSteps.add(myIndex); advance(); };
     stage.replaceChildren();
     lateRating = null;
 
@@ -279,7 +287,7 @@ export async function render(root, { repo, content, navigate, params }) {
         break;
       case 'lecture':
         stopSpeaking();
-        ctlBase(createVoiceCheck({ step: st, saveTake: (take) => saveBilanTake(st, take), onDone: advance }));
+        ctlBase(createVoiceCheck({ step: st, saveTake: (take) => saveBilanTake(st, take), onDone: advanceDone }));
         break;
       case 'presentation':
         stopSpeaking();
@@ -290,14 +298,14 @@ export async function render(root, { repo, content, navigate, params }) {
             await repo.saveMeasures(spontaneRows(meta, take.res, { kind: 'bilan', context: bilanContext(meta) }));
           },
           onReady: () => {},
-          onDone: advance,
+          onDone: advanceDone,
         }));
         break;
       case 'ecoute-bilan':
-        ctlBase(createEcouteBilan({ step: st, onFaits: (f) => { record.bilan.faits = f; save(); }, onDone: advance }));
+        ctlBase(createEcouteBilan({ step: st, onFaits: (f) => { record.bilan.faits = f; save(); }, onDone: advanceDone }));
         break;
       case 'grille':
-        ctlBase(createGrille({ step: st, onGrille: (g) => { record.bilan.grille = g; save(); }, onDone: advance }));
+        ctlBase(createGrille({ step: st, onGrille: (g) => { record.bilan.grille = g; save(); }, onDone: advanceDone }));
         break;
       case 'ab':
         stopSpeaking();
@@ -438,6 +446,7 @@ export async function render(root, { repo, content, navigate, params }) {
     try { await lastTake; } catch (e) { console.error(e); }
     try { await Promise.all(settles.map((f) => f())); } catch (e) { console.error(e); }
     record.completed = !stoppedEarly;
+    if (record.bilan) record.bilan.complete = bilanComplete({ steps: plan.steps, done: [...doneSteps], finished: !stoppedEarly });
     try { await save(); } catch (e) { console.error(e); }
     buzz('end');
     try {
@@ -447,8 +456,9 @@ export async function render(root, { repo, content, navigate, params }) {
       }
     } catch (e) { console.error(e); }
     if (plan.type === 'prerdv') { await showRdvEnd(); return; }
-    if (record.bilan && record.counted) {
+    if (record.bilan && record.counted && record.bilan.complete) {
       // Rapport du bilan, figé dans la séance (M §4.6) ; résultat du bilan de contrôle (M §4.4).
+      // Seulement sur un bilan complet : arrêté en route, il reste dû et n'a pas de rapport.
       try {
         const [ss, recs, ms] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
         if (record.bilan.kind === 'controle') record.bilan.result = controlResult({ control: record, measures: ms });

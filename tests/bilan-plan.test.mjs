@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readJson, loadTestContent } from './helpers.mjs';
 import {
   BILAN_EVERY, CONTROL_AFTER, bilanDue, bilanControlDue, bilanAnnouncement, ineditOrder, buildBilanPlan,
-  buildBilanControlPlan, lastBilanKey, bilansDone, FORME_OPTIONS,
+  buildBilanControlPlan, lastBilanKey, bilansDone, FORME_OPTIONS, bilanComplete, BILAN_MEASURE_KINDS, isBilanBlock,
 } from '../js/core/bilan-plan.js';
+import { createRun, skipBlock, currentStep } from '../js/core/session-engine.js';
 import { weeklyPointDue } from '../js/core/weekly-point.js';
 import { voiceCheckDue, voiceChecks } from '../js/core/voice-plan.js';
 import { buildDailyPlan } from '../js/core/planner.js';
@@ -16,7 +17,7 @@ const S = (sessionNumber, o = {}) => ({
   id: `s${sessionNumber}-${++clock}`, type: 'daily', counted: true, completed: true, startedAt: ++clock * 1000,
   dateKey: `2026-10-${String(10 + (sessionNumber % 20)).padStart(2, '0')}`, sessionNumber, ...o,
 });
-const bilan = (n, extra = {}) => S(n, { bilan: { kind: 'bilan', index: n / BILAN_EVERY, order: ['fr.TA', 'fr.TB', 'fr.TC'], controlDueAt: null, ...extra } });
+const bilan = (n, extra = {}) => S(n, { bilan: { kind: 'bilan', index: n / BILAN_EVERY, order: ['fr.TA', 'fr.TB', 'fr.TC'], controlDueAt: null, complete: true, ...extra } });
 
 test('bilans aux séances 24, 48 et 72 : ils remplacent la séance du jour', () => {
   assert.equal(BILAN_EVERY, 24);
@@ -36,13 +37,56 @@ test('bilan : un jour de reprise, il est reporté à la séance suivante ; une s
   assert.equal(bilansDone([{ ...bilan(24), counted: false }]).length, 0);
 });
 
-test('bilan : la veille, l’accueil l’annonce ; le jour même aussi', () => {
-  assert.equal(bilanAnnouncement({ dailyCount: 23, doneToday: true }), 'Demain : ton bilan de 10 min.');
-  assert.equal(bilanAnnouncement({ dailyCount: 23, doneToday: false }), 'Aujourd’hui : ton bilan de 10 min.');
-  assert.equal(bilanAnnouncement({ dailyCount: 22, doneToday: true }), null);
-  assert.equal(bilanAnnouncement({ dailyCount: 22, doneToday: false }), null);
-  assert.equal(bilanAnnouncement({ dailyCount: 47, doneToday: true }), 'Demain : ton bilan de 10 min.');
-  assert.equal(bilanAnnouncement({ dailyCount: 24, doneToday: true }), null);
+test('bilan : la veille, l’accueil l’annonce ; le jour même aussi, d’après bilanDue', () => {
+  // due : bilanDue() de la PROCHAINE séance (avec la reprise du jour) ; la veille = la séance d'avant faite.
+  assert.equal(bilanAnnouncement({ due: { index: 1 }, doneToday: true }), 'Demain : ton bilan de 10 min.');
+  assert.equal(bilanAnnouncement({ due: { index: 1 }, doneToday: false }), 'Aujourd’hui : ton bilan de 10 min.');
+  assert.equal(bilanAnnouncement({ due: null, doneToday: true }), null);
+  assert.equal(bilanAnnouncement({ due: null, doneToday: false }), null);
+  // Un jour de reprise, bilanDue est null : pas d'annonce. Un bilan reporté (séance 25) est annoncé.
+  assert.equal(bilanAnnouncement({ due: bilanDue({ sessionNumber: 24, sessions: [], comeback: true }), doneToday: false }), null);
+  assert.equal(bilanAnnouncement({ due: bilanDue({ sessionNumber: 25, sessions: [S(24)] }), doneToday: false }), 'Aujourd’hui : ton bilan de 10 min.');
+  // Bilan commencé aujourd'hui puis arrêté (il reste dû) : pas « Demain », il reste à faire.
+  assert.equal(bilanAnnouncement({ due: { index: 1 }, doneToday: true, pendingToday: true }), 'Ton bilan reste à faire : 10 min, quand tu veux.');
+});
+
+test('aucun bilan sans le pack « Mesure »', () => {
+  assert.equal(bilanDue({ sessionNumber: 24, sessions: [], contentReady: false }), null);
+  assert.equal(bilanControlDue({ sessionNumber: 30, sessions: [bilan(24, { controlDueAt: 29 })], contentReady: false }), null);
+});
+
+test('« Passer ce bloc » dans un bilan ne saute que l’étape en cours', () => {
+  const p = buildBilanPlan({ content, sessionNumber: 24, dateKey: '2026-10-20', index: 1, seed: 'x' });
+  assert.equal(new Set(p.steps.map((s) => s.block)).size, p.steps.length, 'un bloc par étape');
+  assert.ok(p.steps.every((s) => isBilanBlock(s.block)));
+  let r = createRun(p.steps, 0);
+  r = skipBlock(r, 1000);
+  assert.equal(r.index, 1);
+  assert.equal(currentStep(r).kind, 'lecture');
+  r = skipBlock(r, 2000);
+  assert.equal(r.index, 2, 'la lecture suivante, pas la fin du bilan');
+  assert.equal(r.status, 'running');
+});
+
+test('bilanComplete : un bilan arrêté avant la fin reste dû, sauf si toutes les mesures sont faites', () => {
+  const p = buildBilanPlan({ content, sessionNumber: 24, dateKey: '2026-10-20', index: 1, seed: 'x' });
+  assert.deepEqual(BILAN_MEASURE_KINDS, ['lecture', 'presentation', 'ecoute-bilan', 'grille']);
+  const measureIdx = p.steps.map((s, i) => (BILAN_MEASURE_KINDS.includes(s.kind) ? i : null)).filter((i) => i !== null);
+  assert.equal(bilanComplete({ steps: p.steps, done: [], finished: true }), true, 'arrivé au bout (même en passant des étapes) : fait');
+  assert.equal(bilanComplete({ steps: p.steps, done: measureIdx.slice(0, 3), finished: false }), false, 'arrêté en route');
+  assert.equal(bilanComplete({ steps: p.steps, done: measureIdx, finished: false }), true, 'arrêté avant l’A/B, toutes les mesures faites');
+  // bilansDone ne retient que les bilans complets.
+  assert.equal(bilansDone([bilan(24, { complete: false })]).length, 0);
+  assert.deepEqual(bilanDue({ sessionNumber: 25, sessions: [bilan(24, { complete: false })] }), { index: 1 }, 'il reste dû');
+});
+
+test('pas deux lectures du texte de référence le même jour : le bilan réutilise celle du contrôle', () => {
+  const p = buildBilanPlan({ content, sessionNumber: 24, dateKey: '2026-10-20', index: 1, seed: 'x', reuseRefId: 'k-2' });
+  assert.equal(p.steps.filter((s) => s.kind === 'lecture' && s.role === 'ref').length, 0);
+  assert.equal(p.steps.filter((s) => s.kind === 'lecture').length, 3);
+  assert.equal(p.bilan.refRecordingId, 'k-2');
+  const c = buildBilanControlPlan({ content, sessionNumber: 29, dateKey: 'd', control: { of: 'b', index: 1, order: ['fr.TA', 'fr.TB', 'fr.TC'] }, reuseRefId: 'k-9' });
+  assert.equal(c.steps.filter((s) => s.role === 'ref').length, 0);
 });
 
 test('pas de doublon : le point de la semaine dû le jour du bilan est reporté', () => {
@@ -76,7 +120,7 @@ test('buildBilanPlan : les 7 étapes, 10 min environ, l’écoute réservée du 
   assert.equal(p.bilan.index, 1);
   assert.equal(p.bilan.kind, 'bilan');
   assert.deepEqual(p.steps.map((s) => s.kind), ['forme', 'lecture', 'lecture', 'lecture', 'lecture', 'presentation', 'ecoute-bilan', 'grille', 'ab']);
-  assert.ok(p.steps.every((s) => s.block === 'bilan' && s.untimed));
+  assert.ok(p.steps.every((s) => isBilanBlock(s.block) && s.untimed));
   const lectures = p.steps.filter((s) => s.kind === 'lecture');
   assert.equal(lectures[0].itemId, content.reference.id);
   assert.equal(lectures[0].syllables, 86);
@@ -122,5 +166,5 @@ test('lastBilanKey : le jour du dernier bilan (pas des contrôles), point de dé
 
 test('buildDailyPlan reste intact hors bilan', () => {
   const p = buildDailyPlan({ content, sessionNumber: 23, dateKey: '2026-10-20' });
-  assert.equal(p.steps.filter((s) => s.block === 'bilan').length, 0);
+  assert.equal(p.steps.filter((s) => isBilanBlock(s.block)).length, 0);
 });

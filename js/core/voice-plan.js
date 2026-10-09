@@ -144,3 +144,14 @@ export function abPair(recordings) {
   if (!a || !b || a === b || a.dateKey === b.dateKey) return null;
   return { a, b, labelA: abLabel(a), labelB: abLabel(b) };
 }
+
+/**
+ * La dernière prise d'une mesure de voix VALIDE (calibration ou contrôle) faite ce jour-là, ou null : un bilan
+ * du même jour la réutilise au lieu de relire le texte de référence (spec V2 §7.1).
+ */
+export function todayReferenceTake(recordings, todayKey) {
+  const check = validChecks(recordings).filter((c) => c.dateKey === todayKey && c.kind !== 'bilan').at(-1);
+  if (!check) return null;
+  const takes = (recordings ?? []).filter((r) => check.recordingIds.includes(r.id)).sort(byCreated);
+  return takes.at(-1) ?? null;
+}
