@@ -1,0 +1,39 @@
+{
+  "reference": {
+    "id": "fr.REF1",
+    "titre": "Texte de référence",
+    "texte": "Bonjour, je suis Fred. Mon métier, c'est de faire le pont entre la technique et l'humain. J'accompagne les artisans et les petites entreprises dans leur transformation numérique. Avant de parler d'outils, j'aimerais comprendre votre quotidien : qu'est-ce qui vous prend le plus de temps en ce moment ? Les chaussettes de l'archiduchesse sont-elles sèches, archisèches ?"
+  },
+  "objectifDefaut": "Être posé et clair en rendez-vous, face à 1 à 3 personnes.",
+  "pourquoiExemples": [
+    "Être compris du premier coup en rendez-vous.",
+    "Parler posément, même quand l'enjeu est fort.",
+    "Préparer le terrain pour l'anglais et l'espagnol."
+  ],
+  "objectifsRdv": [
+    "Savoir s'il a un vrai besoin, un budget et une date.",
+    "Obtenir un rendez-vous avec celui qui décide.",
+    "Comprendre ce qui le bloque."
+  ],
+  "motivations": [
+    "Cinq minutes, pas plus. Le reste de ta journée t'appartient.",
+    "Une phrase claire vaut mieux que trois phrases rapides.",
+    "Tu ne t'entraînes pas pour parler parfaitement, mais pour être compris.",
+    "Une séance ratée ne compte pas. Celle d'aujourd'hui, si.",
+    "Ce que tu dis vaut la peine d'être entendu jusqu'au bout.",
+    "Écouter vraiment, c'est déjà rendre service.",
+    "Le silence après une question travaille pour toi.",
+    "Ralentir, ce n'est pas perdre du temps, c'est en faire gagner à l'autre.",
+    "Tes idées vont vite. Ta bouche apprend à suivre.",
+    "Être le pont entre la tech et l'humain, ça commence par une voix qu'on comprend.",
+    "Personne ne t'écoute aujourd'hui. Tu peux te tromper tranquille.",
+    "Les progrès se voient sur des semaines, pas sur un jour."
+  ],
+  "noteClinique": "Chez certaines personnes qui pensent vite, le débit dépasse la capacité d'articulation : syllabes avalées, mots qui se télescopent, fins de phrase qui s'effacent. Quand c'est marqué, les orthophonistes parlent parfois de bredouillement, qui coexiste plus souvent que la moyenne avec un TDAH. Ce n'est pas un diagnostic : seul un bilan orthophonique peut le dire. Si tu te reconnais là-dedans, un bilan vaut le coup. L'appli reste un complément.",
+  "gardeFous": [
+    "Douleur, brûlure ou gêne à la gorge pendant un exercice : arrête. Un échauffement ne doit jamais faire mal.",
+    "Voix fatiguée ou enrouée : fais seulement l'échauffement doux et saute l'articulation. Bois de l'eau.",
+    "Enrouement qui dure plus de 3 à 4 semaines, voix qui casse, douleur ou difficulté à avaler : consulte ton médecin.",
+    "Si tes difficultés d'élocution te gênent au quotidien, demande un bilan orthophonique (en général sur prescription du médecin traitant). L'appli vient en complément, pas à la place."
+  ]
+}

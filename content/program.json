@@ -1,0 +1,11 @@
+{
+  "sessionsPerWeek": 5,
+  "weeks": [
+    { "week": 1, "theme": "Ouvrir, ralentir", "articulation": ["A01", "A02", "A15", "A16"], "ecoute": ["L01", "L02"], "posture": ["P01", "P07"] },
+    { "week": 2, "theme": "Consonnes qui claquent", "articulation": ["A03", "A04", "A05", "A17", "A18"], "ecoute": ["L03", "L04"], "posture": ["P02", "P03"] },
+    { "week": 3, "theme": "Sifflantes et chuintantes", "articulation": ["A06", "A07", "A08", "A09", "A19", "A20"], "ecoute": ["L05", "L06"], "posture": ["P04", "P08"] },
+    { "week": 4, "theme": "Groupes difficiles", "articulation": ["A10", "A11", "A12", "A21", "A22", "A23"], "ecoute": ["L07", "L08"], "posture": ["P05", "P09"] },
+    { "week": 5, "theme": "Phrases qui portent", "articulation": ["A13", "A24", "A25", "A26"], "ecoute": ["L09", "L10"], "posture": ["P06", "P11"] },
+    { "week": 6, "theme": "Intégration", "articulation": ["A14", "A27", "A28"], "ecoute": ["L11", "L12"], "posture": ["P10", "P12"] }
+  ]
+}
