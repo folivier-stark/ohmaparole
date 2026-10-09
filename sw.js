@@ -31,6 +31,8 @@ const ASSETS = [
   "./js/data/content.js",
   "./js/data/db.js",
   "./js/data/repo.js",
+  "./js/audio/analyze.js",
+  "./js/audio/live-level.js",
   "./js/audio/player.js",
   "./js/audio/recorder.js",
   "./js/platform/haptics.js",
