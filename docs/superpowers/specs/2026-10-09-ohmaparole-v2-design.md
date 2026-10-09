@@ -169,6 +169,46 @@
 - **Écoute à l'aveugle par un proche**, en option aux bilans 48 et 72 (M §3.4) : 6 paires plus 1 paire leurre, 2 choix forcés plus « Je ne sais pas ». Lecture : 6 sur 6 = confirmation, 5 sur 6 = tendance. Le proche tient le téléphone de Fred : rien ne sort de l'appareil.
 - **Contenu à rédiger (pack « Mesure »)** : 3 textes inédits A, B et C (de longueur proche du texte de référence, syllabes comptées), 3 passages d'écoute réservés avec chacun 3 faits clés, 12 questions de parole spontanée, 12 répliques de prospect pour la réplique éclair, et les 6 items de l'auto-grille. Fichier : `docs/experts/expert-contenu-mesure.md`, importé dans `content/fr/mesure.json`.
 
+### 7.1 Choix de mise en œuvre (phase 5)
+
+- **Calendrier** (`js/core/bilan-plan.js`)
+  - Le bilan est dû à la séance 24k. Il est reporté aux 3 séances suivantes après une reprise.
+  - C'est une séance `daily` qui porte `bilan: { kind: 'bilan', index, order, seed, forme, faits, grille, ab, proche, report, controlDueAt }` : elle compte comme une séance partout (stades, Parcours, objectif).
+  - Seule une séance comptée consomme le bilan.
+  - Il est annoncé dans la bulle de l'accueil : « Demain : ton bilan de 10 min. » une fois faite la séance d'avant, et « Aujourd'hui : … » le jour même, mode discret compris.
+- **Pas de doublon**
+  - La lecture du texte de référence au bilan est une prise `reference` avec `voiceCheck: 'bilan'`. Elle compte comme une mesure de voix avec **une seule prise**, et le prochain contrôle repart du bilan.
+  - Le point de la semaine est reporté.
+  - Le bilan de contrôle, lui aussi, remplace la séance.
+- **Étapes** (environ 7 min 30 plus le rapport) : forme du jour ; référence ×1 et inédits A, B et C, avec le protocole de la voix ; se présenter en 60 s ; passage réservé ; auto-grille ; A/B ; rapport.
+  - **Inédits** : leur ordre est un mélange déterministe, et la graine est stockée.
+  - **Se présenter** : la prise est enregistrée, sans tap « Prêt ».
+  - **Passage réservé** : ER1, ER2 puis ER3, lu par la synthèse vocale, ou une fois à l'écran sans voix. Puis 30 s de reformulation et 3 cases.
+  - **Auto-grille** : une compétence à la fois, repère 1 à 3 ou « Non observé ».
+  - **A/B** : la toute première lecture contre celle du jour ; le choix est stocké.
+- **Mesures du bilan** : `kind: 'bilan'`, le texte dans `context.texte` (`fr.REF1`, `fr.TA`… ou `presentation`), avec `context.forme` et `context.bilan`.
+  - Les métriques sont celles de la lecture, ou celles de la parole spontanée pour la présentation.
+  - Elles sont réanalysées si `ALGO_VERSION` change.
+- **Verdict par axe** (`js/core/evaluation.js`) : chaque indicateur principal devient un z orienté.
+  - **Diction** : RCI de la dernière mesure de voix contre la ligne de base, la lecture unique du bilan restant en détail.
+  - **Écoute** : faits clés contre le bilan précédent. Faute de bruit connu, la convention est +2 faits = 1,96 et +1 fait = 1,28.
+  - **Posture** : proche, « envie d'écouter la suite » ; n sur n = 1,96, n − 1 = 1,28, n ≥ 5.
+  - **RDV** : P(4 dernières semaines > mois 1) en bêta-binomial ; ≥ 0,975 = 1,96 et ≥ 0,90 = 1,28.
+- **Familles de soutien** : le ressenti du jour (« Clair », « Repéré », « Posé ») en tendance depuis le bilan précédent ; l'A/B de Fred, qui ne compte qu'en positif (un choix isolé est trop fragile pour contredire) ; le proche en compréhension, pour la diction ; le silence tenu au micro, pour la posture ; les objectifs atteints, pour les RDV.
+- **Réplication** : tendance au bilan précédent, ou 2 inédits sur 3 dont le RCI par texte atteint 1,28 contre le bilan précédent. Ce RCI utilise le SDw de la voix rapporté à la valeur du texte. Le premier bilan est la référence des inédits.
+- **Baisse de la diction au bilan**
+  - Elle est dite sans couleur, avec la forme du jour, et `controlDueAt = séance + 5`.
+  - Le **bilan de contrôle** (forme, référence et inédits dans l'ordre du bilan, 3 min) compare sa lecture du texte de référence à la ligne de base : soit « La baisse se confirme… » avec une piste, soit « ne se retrouve pas ».
+- **`sinceKey`** : la tendance des taux part du dernier bilan (sur les cartes de Progression).
+- **Rapport** : figé dans la séance à la fin du bilan, recalculé seulement après l'écoute du proche.
+  - Une seule action, par priorité : contrôle après une baisse ; proche aux bilans 2 et 3 ; compétence la plus basse de l'auto-grille ; sinon « Continue ».
+  - La phrase de réalisme ne paraît qu'au premier bilan.
+  - Louarn n'a pas de réplique `bilan` dans `louarn.json` : il se tait.
+- **Proche** (`#/proche/<id>`)
+  - Les paires réelles reprennent chaque texte contre le premier bilan (la référence contre la toute première lecture), puis contre le bilan précédent, 6 au plus. Cela fait 5 paires au bilan 48 et 6 au bilan 72.
+  - La paire leurre est **la même prise du jour deux fois**, car le bilan n'a qu'une prise par texte. Si le proche la tranche aux deux questions, le détail le note, sans le lui dire.
+  - Il faut au moins 5 paires pour lire un résultat.
+
 ## 8. Architecture et données
 
 - **Le cœur reste pur et testé** sous Node : `stats.js` (Wilson, bêta-binomial, RCI et MDC), `acoustics.js`, `louarn.js` (stades, souvenirs, répliques), `evaluation.js` (verdicts d'axe), plus des extensions de `planner.js` (calibration, contrôle de voix, point de la semaine, bilans).
