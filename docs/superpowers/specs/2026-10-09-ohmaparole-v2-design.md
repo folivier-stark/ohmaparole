@@ -113,6 +113,40 @@
   - **A, parole spontanée** de 45 s sur une question tirée d'un lot de 12, avec mesure du % de pause et du nombre de pauses en parole non lue (ni débit ni syllabes), plus 1 tap « Si tu avais un RDV demain : Pas prêt / Plutôt prêt / Prêt » (M §3.2) ;
   - **B, réplique éclair** de 90 s (R §3.3) : la synthèse vocale dit une phrase de prospect et Fred répond. On mesure le délai de réponse, la durée et le silence tenu, puis Fred coche 2 cases en réécoutant sa prise.
 
+### 6.1 Choix de mise en œuvre (phase 4)
+
+- **Exercices mesurés au micro** (`js/core/live-silence.js`, `POSTURE_MIC`). La liste a été vérifiée contre `exercises.json` : on garde les exercices dont la consigne a un silence ou une pause **chiffrés**.
+  - **Délai de 2 s** : P03.
+  - **Silence** : P04 (5 s), P14 (3 s), P22 (4 s, après un non), P23 (8 s) et P24. P24 n'a pas de durée chiffrée : on prend 4 s, comme P22.
+  - **Écartés** : P09, parce que le passage d'écoute qu'il suppose n'est pas lu dans le bloc posture ; P18, monologue de 60 s avec des pauses de réflexion et sans durée de silence.
+  - La mesure est **facultative** : un tap la lance. Ce tap donne aussi le geste qu'exige l'AudioContext.
+- **Déroulé de la mesure au micro**
+  - On écoute la pièce pendant 1,5 s.
+  - Puis on fixe le seuil. **Avec calibration** : `speechThreshold(noiseDb, speechDb)` de la dernière prise de voix valide, ces niveaux étant stockés dans `context` des mesures. Le seuil reste au moins 6 dB au-dessus du bruit du jour. **Sans calibration** : bruit de la pièce + 12 dB, si bien que la parole doit dépasser le bruit de 15 dB.
+  - Si la pièce dépasse −25 dB, aucune mesure n'est faite.
+- **Le « bip » des consignes** est une vibration de 50 ms à la cible : moins de 150 ms, elle ne coupe pas un silence. Aucun son n'est joué et aucun chiffre ne s'affiche pendant l'exercice.
+- **Silence tenu** : il démarre après au moins **1,5 s** sans parole. En dessous, c'est une pause dans la phrase : `measureSilenceAfter` s'arrêterait au premier trou de 250 ms. Il s'arrête quand Fred reparle (la phrase suivante, puis « Merci » pour finir). **Délai (P03)** : `measureSilenceAfter`, depuis l'affichage de la question.
+- **Ce qui est stocké** : seulement des nombres, en `kind: 'posture' | 'eclair'`, `metric: 'silenceTenu' | 'delaiReponse' | 'dureeReponse'`, avec la version `live-1`.
+  - La réanalyse des Blobs ne les touche jamais.
+  - Une mesure interrompue, abandonnée ou qui dépasse le temps n'est pas stockée. Une pause arrête la mesure.
+- **Point de la semaine** (`js/core/weekly-point.js`)
+  - Il est dû à la séance 4t pour le thème t. Si une mesure de voix ou une reprise occupe cette séance, il est reporté aux séances 4t + 1 à 4t + 3.
+  - Seule une séance **comptée** le consomme. Un point passé compte comme fait : la mesure ne doit pas devenir une dette.
+  - Les formats alternent A, B, A… dans l'ordre des points faits. Une question ou une réplique n'est jamais tirée deux fois dans un cycle de 72 séances.
+  - Le point remplace le bloc 3 (`bloc3: null` : l'alternance écoute/posture continue ensuite) et prend un pas sans limite de temps.
+- **A, parole spontanée** : même protocole que la mesure de voix (vibration avant le micro, 2 s de silence), 45 s au plus.
+  - La prise est enregistrée (`kind: 'spontane'`) et réanalysée si `ALGO_VERSION` change.
+  - Mesures : `pausePctSpontane`, `pauseCountSpontane`, `dureeSpontane`.
+  - Le tap « Si tu avais un RDV demain » est stocké dans `weeklyPoint.ready`.
+- **B, réplique éclair**
+  - Le compteur écoute la pièce 1 s, puis la synthèse vocale dit la réplique (sans voix, Fred la lit une fois).
+  - **Ensuite** l'enregistrement démarre (`kind: 'eclair'`, pour la réécoute). Le délai se compte depuis la fin de la réplique, sa traîne de 300 ms étant ignorée.
+  - Une reprise avant 5 s de silence est comptée (« repris après x s »). 5 s de silence donnent le signal et la fin.
+  - Les deux cases sont stockées dans `weeklyPoint.criteres`.
+- **Progression**
+  - **Posture** : une ligne « Mesuré au micro ». Elle donne la valeur seule sous 3 mesures, puis la médiane des 3 dernières, le départ (médiane des 3 premières) et « tenu jusqu'au signal x fois sur les 5 dernières ».
+  - **Carte « Ton point de la semaine »** : « Prêt » x fois sur les 4 derniers points, le % de pause en parole spontanée dès 3 mesures, et les cases de la réplique éclair en « x sur y ».
+
 ## 7. Bilans de progrès : séances 24, 48 et 72 (M §3.3-§4.6)
 
 > La fin de chaque bloc remplace S30 et S60 de M, puisque le programme fait désormais 18 × 4 séances.
