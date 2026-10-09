@@ -21,6 +21,7 @@ const ASSETS = [
   "./js/core/pick.js",
   "./js/core/planner.js",
   "./js/core/progress.js",
+  "./js/core/rdv.js",
   "./js/core/reminder.js",
   "./js/core/session-engine.js",
   "./js/core/stats.js",
