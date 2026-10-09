@@ -176,3 +176,6 @@ textarea.field { min-height: 96px; resize: vertical; }
 .bilan-detail[hidden] { display: none; }
 .grille-chip { display: block; width: 100%; }
 .btn-small.chosen { background: var(--primary); color: var(--on-primary); }
+/* Repère neutre quand rien n'est enregistré (pas de point rouge) */
+.cue { font: 600 20px var(--font-title); margin: 12px 0; }
+.oups { margin: auto 0; display: flex; flex-direction: column; gap: 12px; }

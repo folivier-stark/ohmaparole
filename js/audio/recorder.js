@@ -8,16 +8,18 @@ export function pickMimeType() {
  * Ouvre le micro et démarre une prise (sans timeslice, pour que Chrome écrive la durée).
  * Retourne { stop(): Promise<{blob, mimeType, durationMs}|null>, cancel() }.
  * Le contrôle automatique de gain est coupé, sinon la comparaison J1/J30 est faussée.
+ * stream (optionnel) : enregistre sur un flux déjà ouvert (celui du compteur de niveau de la réplique éclair) :
+ * un seul getUserMedia, et ce flux n'est PAS coupé à l'arrêt, il appartient à l'appelant.
  */
-export async function startRecording() {
-  const stream = await navigator.mediaDevices.getUserMedia({
+export async function startRecording({ stream: given = null } = {}) {
+  const stream = given ?? await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
   });
   const mimeType = pickMimeType();
   const rec = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32000 });
   const chunks = [];
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-  const release = () => stream.getTracks().forEach((t) => t.stop());
+  const release = () => { if (!given) stream.getTracks().forEach((t) => t.stop()); };
   const startedAt = performance.now();
   rec.start();
   let stopped = false;

@@ -29,6 +29,7 @@ export function createPostureMic({ item, config, calibration, record, saveRows }
   const ctl = new AbortController();
   let meter = null;
   let destroyed = false;
+  let paused = false;
   let pending = Promise.resolve();
   let stored = 0;
   const show = (...nodes) => { if (!destroyed) el.replaceChildren(...nodes.flat(Infinity).filter((n) => n != null)); };
@@ -54,7 +55,8 @@ export function createPostureMic({ item, config, calibration, record, saveRows }
       show(note('Micro indisponible : fais l’exercice sans mesure.'));
       return;
     }
-    if (destroyed) { meter.close(); return; }
+    // Pause (ou écran quitté) arrivée pendant l'ouverture du micro : on ferme tout.
+    if (destroyed || paused) { close(); if (paused) show(note('Mesure arrêtée pendant la pause.')); return; }
     const t0 = performance.now();
     await wait(ROOM_MS);
     if (destroyed) return;
@@ -153,8 +155,9 @@ export function createPostureMic({ item, config, calibration, record, saveRows }
     settled: () => pending,
     /** Pause : la mesure s'arrête (une mesure qui traverse une pause serait fausse). */
     pause() {
-      if (!meter) return;
+      paused = true;
       ctl.abort();
+      if (!meter) return;
       close();
       show(note('Mesure arrêtée pendant la pause.'));
     },

@@ -48,8 +48,11 @@ export function createPointEclair({ step, calibration, record, saveTake, saveRow
     if (running) return;
     running = true;
     const my = ++token;
+    // Un seul getUserMedia : le compteur de niveau et l'enregistrement partagent ce flux (coupé par le compteur).
+    let stream = null;
     try {
-      meter = await createLevelMeter(await openMicStream(), { stopTracksOnClose: true });
+      stream = await openMicStream();
+      meter = await createLevelMeter(stream, { stopTracksOnClose: true });
     } catch {
       meter = null;
     }
@@ -77,12 +80,12 @@ export function createPointEclair({ step, calibration, record, saveTake, saveRow
     if (my !== token || destroyed) return;
     const ttsEnd = performance.now();
     try {
-      recorder = await startRecording();
+      recorder = await startRecording(meter && stream ? { stream } : {});
     } catch {
       recorder = null;
     }
     if (my !== token || destroyed) { cleanup(); return; }
-    show(h('p', { class: 'rec' }, h('span', { class: 'rec-dot' }), recorder ? 'À toi. J’enregistre.' : 'À toi.'),
+    show(recorder ? h('p', { class: 'rec' }, h('span', { class: 'rec-dot' }), 'À toi. J’enregistre.') : h('p', { class: 'cue' }, 'À toi.'),
       h('p', { class: 'muted' }, 'Réponds-lui. Quand tu as fini, tais-toi jusqu’au signal.'),
       btn('J’ai fini', () => stopAnswer?.(), 'btn-secondary'));
 
@@ -188,7 +191,7 @@ export function createPointEclair({ step, calibration, record, saveTake, saveRow
     el,
     settled: () => pending,
     pause() {
-      if (running && meter) { cleanup(); interrupted = true; }
+      if (running) { cleanup(); interrupted = true; }
     },
     resume() {
       if (!interrupted) return;

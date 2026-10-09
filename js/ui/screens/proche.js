@@ -57,6 +57,7 @@ export async function render(root, { repo, content, navigate, params }) {
       h('div', { class: 'row' }, [['A', 'A'], ['B', 'B'], ['nsp', 'Je ne sais pas']].map(([v, l]) => h('button', {
         class: 'btn-small',
         onclick: (e) => {
+          if (answers[p.id]) return; // double tap : la paire est déjà répondue
           a[q] = v;
           for (const b of e.currentTarget.parentElement.children) b.classList.toggle('chosen', b === e.currentTarget);
           if (a.q1 && a.q2) { answers[p.id] = { ...a }; player.stop(); i += 1; pair(); }
