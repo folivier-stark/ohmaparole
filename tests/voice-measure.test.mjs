@@ -53,13 +53,15 @@ test('measureTake : refus et échec de décodage, sans jamais rejeter', async ()
   assert.equal((await measureTake(null, SYLL)).reason, 'decodage');
 });
 
-test('takeRows : 5 lignes par prise valide, le contexte ne garde que des booléens', async () => {
+test('takeRows : 5 lignes par prise valide, contexte : leadSilent et niveaux de la prise', async () => {
   installOffline();
   const r = await measureTake(blobOf('v2'), SYLL);
   const rows = takeRows({ id: 'r1', sessionId: 's1', dateKey: '2026-10-10', createdAt: 1 }, 'calibration', r);
   assert.ok(rows.length >= 4);
   assert.ok(rows.every((x) => x.kind === 'calibration' && x.algoVersion === ALGO_VERSION && x.snrDb > 20));
-  assert.deepEqual(rows[0].context, { leadSilent: true });
+  assert.equal(rows[0].context.leadSilent, true);
+  assert.deepEqual(Object.keys(rows[0].context).sort(), ['leadSilent', 'noiseDb', 'speechDb'], 'niveaux pour le seuil en direct');
+  assert.ok(Number.isFinite(rows[0].context.noiseDb) && Number.isFinite(rows[0].context.speechDb));
   assert.deepEqual(takeRows({ id: 'r', dateKey: 'd', createdAt: 1 }, 'calibration', { valid: false }), []);
 });
 
@@ -76,9 +78,9 @@ function fakeRepo({ recordings, audio, measures = [], meta = {} }) {
         if (i >= 0) store.measures[i] = r; else store.measures.push(r);
       }
     },
-    deleteMeasuresByAlgo: async (v) => {
+    deleteMeasuresByAlgo: async (v, kinds = null) => {
       const before = store.measures.length;
-      store.measures = store.measures.filter((m) => m.algoVersion !== v);
+      store.measures = store.measures.filter((m) => !(m.algoVersion === v && (!kinds || kinds.includes(m.kind))));
       return before - store.measures.length;
     },
     getMeta: async (k, d = null) => (k in store.meta ? store.meta[k] : d),
@@ -96,18 +98,26 @@ test('reanalyzeReferences : références V1 en reference-v1, prises de voix à l
     { id: 'art', kind: 'session', sessionId: 's1', dateKey: '2026-10-10', createdAt: 5 },
     { id: 'part', kind: 'partial', sessionId: 's1', dateKey: '2026-10-10', createdAt: 6 },
     { id: 'gone', kind: 'reference', milestone: 14, sessionId: 's3', dateKey: '2026-09-15', createdAt: 7 },
+    { id: 'sp', kind: 'spontane', sessionId: 's4', dateKey: '2026-10-21', createdAt: 8 },
+    { id: 'ecl', kind: 'eclair', sessionId: 's5', dateKey: '2026-10-25', createdAt: 9 },
   ];
-  const audio = { j1: 'v1', c1: 'v2', k1: 'v2', noisy: 'bruit', art: 'v2', part: 'v2' };
+  const audio = { j1: 'v1', c1: 'v2', k1: 'v2', noisy: 'bruit', art: 'v2', part: 'v2', sp: 'v2', ecl: 'v2' };
   const old = [{ id: 'c1:debit:acoustics-1', recordingId: 'c1', metric: 'debit', value: 5, algoVersion: 'acoustics-1', kind: 'calibration' }];
   // k1 a déjà ses mesures à la version courante (prise de la séance) : pas de nouveau décodage.
   const current = [{ id: `k1:debit:${ALGO_VERSION}`, recordingId: 'k1', metric: 'debit', value: 6.2, algoVersion: ALGO_VERSION, kind: 'controle' }];
-  const repo = fakeRepo({ recordings, audio, measures: [...old, ...current] });
+  // Une mesure en direct (posture) n'a pas de Blob : elle survit à la réanalyse.
+  const live = [{ id: 's9:posture:fr.P23:1:silenceTenu', recordingId: null, metric: 'silenceTenu', value: 8, algoVersion: 'live-1', kind: 'posture' }];
+  const repo = fakeRepo({ recordings, audio, measures: [...old, ...current, ...live] });
 
   const r = await reanalyzeReferences({ repo, syllables: SYLL });
-  assert.deepEqual(r, { analyzed: 2, refused: 1, missing: 1, deleted: 1 });
+  assert.deepEqual(r, { analyzed: 3, refused: 1, missing: 1, deleted: 1 });
   const kinds = Object.fromEntries(repo.store.measures.filter((m) => m.metric === 'debit').map((m) => [m.recordingId, m.kind]));
   assert.deepEqual(kinds, { j1: 'reference-v1', c1: 'calibration', k1: 'controle' });
-  assert.ok(repo.store.measures.every((m) => m.algoVersion === ALGO_VERSION), 'plus aucune mesure de l’ancien algorithme');
+  // Parole spontanée : % de pause, sans débit (pas de texte). La réplique éclair n'est pas réanalysée.
+  assert.deepEqual(repo.store.measures.filter((m) => m.recordingId === 'sp').map((m) => m.metric).sort(), ['dureeSpontane', 'pauseCountSpontane', 'pausePctSpontane']);
+  assert.equal(repo.store.measures.some((m) => m.recordingId === 'ecl'), false);
+  assert.ok(repo.store.measures.filter((m) => m.kind !== 'posture').every((m) => m.algoVersion === ALGO_VERSION), 'plus aucune mesure de l’ancien algorithme');
+  assert.ok(repo.store.measures.some((m) => m.algoVersion === 'live-1'), 'mesure en direct gardée');
   assert.equal(repo.store.measures.find((m) => m.id === `k1:debit:${ALGO_VERSION}`).value, 6.2, 'déjà à jour : intact');
   assert.equal(repo.store.meta.measuresAlgo, ALGO_VERSION);
   assert.deepEqual(repo.store.meta['measures.refused'], { algoVersion: ALGO_VERSION, ids: ['noisy'] }, 'un audio absent sera réessayé');

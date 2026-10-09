@@ -13,6 +13,10 @@
 import { decodeToMono16k, TARGET_RATE } from './analyze.js';
 import { analyzeSpeech, readingMetrics, speechRateCV, V1_REFERENCE_OPTIONS, ALGO_VERSION } from '../core/acoustics.js';
 import { measureRows } from '../core/voice-report.js';
+import { spontaneRows } from '../core/weekly-point.js';
+
+/** Mesures recalculables depuis un Blob : la réanalyse ne touche qu'elles (jamais les mesures en direct). */
+export const REANALYZED_KINDS = Object.freeze(['calibration', 'controle', 'reference-v1', 'spontane']);
 
 /**
  * Décode et mesure une prise : D §4 rangs 1 à 3, plus le CV de débit (en observation, jamais affiché).
@@ -43,10 +47,18 @@ export async function measureTake(blob, syllables, opts = {}) {
   return { valid: true, reason: null, analysis, metrics, cv };
 }
 
-/** Les lignes `measures` d'une prise mesurée (aucune si elle est refusée). */
+/**
+ * Les lignes `measures` d'une prise mesurée (aucune si elle est refusée). Le contexte garde leadSilent et
+ * les niveaux de bruit et de parole de la prise (noiseDb, speechDb) : ils donnent le seuil des mesures en
+ * direct de la posture et de la réplique éclair (js/core/live-silence.js).
+ */
 export function takeRows(recording, kind, res) {
   if (!res?.valid || !res.metrics) return [];
-  const context = typeof res.analysis?.leadSilent === 'boolean' ? { leadSilent: res.analysis.leadSilent } : {};
+  const a = res.analysis ?? {};
+  const context = {};
+  if (typeof a.leadSilent === 'boolean') context.leadSilent = a.leadSilent;
+  if (Number.isFinite(a.noiseDb)) context.noiseDb = a.noiseDb;
+  if (Number.isFinite(a.speechDb)) context.speechDb = a.speechDb;
   return measureRows({
     recording, kind, metrics: res.metrics, cv: res.cv, snrDb: res.analysis?.snrDb ?? null,
     algoVersion: res.analysis?.algoVersion ?? ALGO_VERSION, context,
@@ -56,8 +68,9 @@ export function takeRows(recording, kind, res) {
 const defaultSleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
- * Mesure les références qui n'ont pas de mesure à la version courante, puis supprime les mesures des
- * autres versions. Séquentiel ; avant chaque décodage, attend tant que shouldWait() est vrai (une séance
+ * Mesure les références (et les prises de parole spontanée) sans mesure à la version courante, puis
+ * supprime leurs mesures des autres versions. Les mesures en direct (posture, réplique éclair, version
+ * live-1) n'ont pas de Blob à réanalyser : elles ne sont jamais supprimées. Séquentiel ; avant chaque décodage, attend tant que shouldWait() est vrai (une séance
  * en cours : le décodage ne doit pas gêner l'enregistrement).
  * @returns {Promise<{ analyzed: number, refused: number, missing: number, deleted: number }>}
  */
@@ -67,7 +80,7 @@ export async function reanalyzeReferences({ repo, syllables, shouldWait = () => 
   ]);
   const refused = refusedMeta?.algoVersion === ALGO_VERSION ? [...refusedMeta.ids] : [];
   const done = new Set(measures.filter((m) => m.algoVersion === ALGO_VERSION).map((m) => m.recordingId));
-  const todo = recordings.filter((r) => r.kind === 'reference' && !done.has(r.id) && !refused.includes(r.id));
+  const todo = recordings.filter((r) => (r.kind === 'reference' || r.kind === 'spontane') && !done.has(r.id) && !refused.includes(r.id));
   const out = { analyzed: 0, refused: 0, missing: 0, deleted: 0 };
 
   for (const rec of todo) {
@@ -78,10 +91,11 @@ export async function reanalyzeReferences({ repo, syllables, shouldWait = () => 
       out.missing += 1;
       continue;
     }
-    const kind = rec.voiceCheck ?? 'reference-v1';
-    const res = await measureTake(blob, syllables, rec.voiceCheck ? {} : V1_REFERENCE_OPTIONS);
+    const spontane = rec.kind === 'spontane';
+    const kind = spontane ? 'spontane' : rec.voiceCheck ?? 'reference-v1';
+    const res = await measureTake(blob, spontane ? null : syllables, spontane || rec.voiceCheck ? {} : V1_REFERENCE_OPTIONS);
     if (res.valid) {
-      await repo.saveMeasures(takeRows(rec, kind, res));
+      await repo.saveMeasures(spontane ? spontaneRows(rec, res) : takeRows(rec, kind, res));
       out.analyzed += 1;
     } else {
       refused.push(rec.id);
@@ -91,8 +105,9 @@ export async function reanalyzeReferences({ repo, syllables, shouldWait = () => 
   if (out.refused || refusedMeta?.algoVersion !== ALGO_VERSION) {
     await repo.setMeta('measures.refused', { algoVersion: ALGO_VERSION, ids: refused });
   }
-  for (const v of new Set(measures.map((m) => m.algoVersion).filter((v) => v !== ALGO_VERSION))) {
-    out.deleted += await repo.deleteMeasuresByAlgo(v);
+  const old = measures.filter((m) => REANALYZED_KINDS.includes(m.kind) && m.algoVersion !== ALGO_VERSION);
+  for (const v of new Set(old.map((m) => m.algoVersion))) {
+    out.deleted += await repo.deleteMeasuresByAlgo(v, REANALYZED_KINDS);
   }
   if ((await repo.getMeta('measuresAlgo', null)) !== ALGO_VERSION) await repo.setMeta('measuresAlgo', ALGO_VERSION);
   return out;

@@ -42,9 +42,13 @@ export async function listMeasures() {
   return (await db.getAll('measures')).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
 }
 
-/** Supprime toutes les mesures d'une version de l'algorithme (après leur réanalyse). Renvoie leur nombre. */
-export async function deleteMeasuresByAlgo(algoVersion) {
-  const ids = (await db.getAll('measures')).filter((m) => m.algoVersion === algoVersion).map((m) => m.id);
+/**
+ * Supprime les mesures d'une version de l'algorithme (après leur réanalyse), limitées aux types `kinds`
+ * s'il est donné : les mesures en direct n'ont pas de Blob, on ne les supprime jamais. Renvoie leur nombre.
+ */
+export async function deleteMeasuresByAlgo(algoVersion, kinds = null) {
+  const ids = (await db.getAll('measures'))
+    .filter((m) => m.algoVersion === algoVersion && (!kinds || kinds.includes(m.kind))).map((m) => m.id);
   if (ids.length) await db.deleteMany('measures', ids);
   return ids.length;
 }

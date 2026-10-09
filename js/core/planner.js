@@ -55,6 +55,25 @@ function voiceSteps(ref, voiceCheck) {
   }];
 }
 
+/**
+ * Point de la semaine (spec V2 §6) : un pas sans limite de temps, à la place du bloc 3 (durée nominale 120 s,
+ * celle d'un bloc 3). A : parole spontanée de 45 s (M §3.2). B : réplique éclair (R §3.3).
+ */
+function pointSteps(format, item) {
+  if (format === 'eclair') {
+    return [{
+      block: 'point', kind: 'eclair', durationSec: 120, untimed: true, itemId: item.id, title: 'Réplique éclair',
+      lines: ['Le prospect te dit une phrase. Réponds-lui à voix haute.', 'Quand tu as fini, tais-toi jusqu’au signal.'],
+      text: null, replique: item.replique, criteres: [item.critere1, item.critere2], speak: null,
+    }];
+  }
+  return [{
+    block: 'point', kind: 'spontane', durationSec: 120, untimed: true, itemId: item.id, title: 'Ton point de la semaine',
+    lines: ['45 secondes pour répondre, comme en rendez-vous.', 'Rien à préparer : tu parles, c’est tout.'],
+    text: null, question: item.texte, maxSec: 45, speak: null,
+  }];
+}
+
 function ecouteSteps(it) {
   return [
     { block: 'ecoute', kind: 'listen', durationSec: 50, itemId: it.id, title: it.titre, lines: ['Écoute. Ne prépare pas ta réponse.'], text: null, passage: it.passage, speak: it.passage, why: it.pourquoi },
@@ -66,8 +85,12 @@ function ecouteSteps(it) {
 /**
  * voiceCheck : voiceCheckDue() (js/core/voice-plan.js), 'calibration' | 'controle' | null. Le bloc voix vient
  * au début, avant l'échauffement (D §3.4 : la parole « à froid »), et prend la place de l'articulation.
+ * weeklyPoint : { theme, format, item } (weekly-point.js) ; il remplace le bloc 3. Jamais avec une mesure de
+ * voix ni une reprise (weeklyPointDue le reporte ; ce plan l'ignore par sécurité).
  */
-export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, lastBloc3 = null, voiceCheck = null, comeback = false }) {
+export function buildDailyPlan({
+  content, history = [], sessionNumber, dateKey, lastBloc3 = null, voiceCheck = null, comeback = false, weeklyPoint = null,
+}) {
   const weeksPerCycle = content.program.weeks.length;
   const { cycle, week } = programPosition(sessionNumber, weeksPerCycle, content.program.sessionsPerWeek ?? SESSIONS_PER_WEEK);
   const seed = `${dateKey}#${sessionNumber}`;
@@ -93,14 +116,21 @@ export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, 
   }
 
   let bloc3 = null;
-  if (!comeback) {
+  const point = !comeback && !voice && weeklyPoint?.item ? weeklyPoint : null;
+  if (point) {
+    itemIds.push(point.item.id);
+    steps.push(...pointSteps(point.format, point.item));
+  } else if (!comeback) {
     bloc3 = nextBloc3(lastBloc3);
     const it = pickLeastRecent(weekItems(content, week, bloc3), history, `${seed}:${bloc3}`);
     itemIds.push(it.id);
     steps.push(...(bloc3 === 'ecoute' ? ecouteSteps(it) : [guide('posture', it, 120)]));
   }
 
-  return { type: comeback ? 'comeback' : 'daily', sessionNumber, cycle, week, bloc3, voiceCheck: voice ?? null, itemIds, steps };
+  return {
+    type: comeback ? 'comeback' : 'daily', sessionNumber, cycle, week, bloc3, voiceCheck: voice ?? null,
+    weeklyPoint: point ? { theme: point.theme, format: point.format, itemId: point.item.id } : null, itemIds, steps,
+  };
 }
 
 export function buildRdvPlan({ content, dateKey, lastConsigneId = null }) {
