@@ -11,10 +11,10 @@
 //   pratique y est maximal), sauf si cette séance n'a que 2 prises valides : une médiane en demande 2.
 // - SDw de calibration = sdWithin(médianes des 3 séances, défaut de D §3.2), écart type simple, sans
 //   detrend (aucun progrès attendu en 3 séances).
-// - Ensuite, SDw = max(sdWithin(toute la série, défaut, { detrend: true }), SDw de calibration) : les écarts
-//   autour de la tendance (D §3.3), jamais sous la calibration. Le point jugé entre dans la série : un saut
-//   vu une seule fois, au premier contrôle, gonfle les résidus et reste souvent « pas de différence
-//   mesurable » ; vu deux fois, il passe. C'est voulu (M §4.2 : « vu deux fois »).
+// - Ensuite, le bruit s'estime SANS le point jugé (décision du 09/10) : pour le verdict de la séance n,
+//   SDw = max(sdWithin(séances 1 à n − 1, défaut, { detrend: true }), SDw de calibration), les écarts autour
+//   de la tendance (D §3.3), jamais sous la calibration. Avant le 4e point de cette série (premier contrôle),
+//   c'est le SDw de calibration. Ainsi un vrai saut n'élargit pas lui-même sa zone de bruit.
 // - Verdict = verdictReading(base, médiane de la dernière séance, SDw, CALM_DIRECTION[mesure]).
 // - Zone probable aujourd'hui (le trait de la bande, M §4.3) : médiane ± 1,28 × SDw (80 %).
 import {
@@ -112,9 +112,11 @@ export function voiceReport(measures, { algoVersion = ALGO_VERSION } = {}) {
     const base = baseline(calValues);
     const def = defaultSd(m, base);
     const sdwCal = sdWithin(calValues, def);
+    // Le bruit s'estime SANS le point jugé : séances 1 à n − 1, détendancées, dès qu'il y en a 4.
+    const prior = values.slice(0, -1);
     let sdw = sdwCal;
-    if (controls > 0) {
-      const detr = sdWithin(values, def, { detrend: true });
+    if (controls > 0 && prior.filter(isNum).length >= 4) {
+      const detr = sdWithin(prior, def, { detrend: true });
       sdw = [detr, sdwCal].filter(isNum).reduce((a, b) => Math.max(a, b), Number.NEGATIVE_INFINITY);
       if (!isNum(sdw)) sdw = null;
     }

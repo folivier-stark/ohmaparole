@@ -108,30 +108,32 @@ test('après la calibration, sans contrôle : le repère de départ et le procha
   assert.equal(voiceSummary(voiceReport(CAL())).lines.length, 3, 'sans échéance connue : pas de ligne');
 });
 
-test('suivi : verdict par mesure contre la ligne de base, SDw sur toute la série détendancée, borné par la calibration', () => {
-  const rows = [...CAL(), ...ctl2(6.0, 0.18, 7.4)];
-  const r = voiceReport(rows);
+test('suivi : verdict contre la ligne de base, le bruit estimé SANS le point jugé', () => {
+  // Premier contrôle : la série 1 à n − 1 n'a que les 3 points de calibration, on prend le SDw de calibration.
+  const r = voiceReport([...CAL(), ...ctl('k1', '2026-10-20', 6.0, 0.18, 7.4)]);
   assert.equal(r.state, 'suivi');
-  assert.equal(r.controls, 2);
+  assert.equal(r.controls, 1);
   const d = r.metrics.debit;
   assert.ok(Math.abs(d.current - 6.0) < 1e-9);
-  // Série 6,8 ; 6,8 ; 6,8 ; 6,0 ; 6,0, résidus d'une droite, au moins la valeur de calibration.
-  const detr = sdWithin([6.8, 6.8, 6.8, 6.0, 6.0], defaultSd('debit', 6.8), { detrend: true });
-  assert.ok(Math.abs(d.sdw - Math.max(detr, 0.272)) < 1e-12);
-  assert.equal(d.verdict, 'plus-pose', 'écart de 0,8 ≥ MDC');
+  assert.ok(Math.abs(d.sdw - 0.272) < 1e-9, `sdw ${d.sdw}`);
+  assert.equal(d.verdict, 'plus-pose', '6,8 → 6,0 vu une seule fois : écart de 0,8 ≥ MDC de calibration (0,75)');
   assert.equal(r.metrics.pausePct.verdict, 'pas-de-difference', '+9 points < MDC de 11 points');
   assert.equal(r.metrics.debitArticulatoire.verdict, 'pas-de-difference');
   assert.ok(Math.abs(d.low80 - (6.0 - 1.28 * d.sdw)) < 1e-12);
   assert.ok(Math.abs(d.high80 - (6.0 + 1.28 * d.sdw)) < 1e-12);
 });
 
-test('un saut vu une seule fois, au premier contrôle, reste « pas de différence mesurable » (SDw sur toute la série)', () => {
-  // Le point jugé entre dans la série : un saut isolé gonfle les résidus (0,31 > 0,27), la MDC passe à 0,86.
-  const r = voiceReport([...CAL(), ...ctl('k1', '2026-10-20', 6.0, 0.18, 7.4)]);
-  assert.equal(r.controls, 1);
-  assert.ok(Math.abs(r.metrics.debit.sdw - sdWithin([6.8, 6.8, 6.8, 6.0], 0.272, { detrend: true })) < 1e-12);
-  assert.ok(r.metrics.debit.sdw > 0.3);
+test('à partir du 2e contrôle : SDw = max(detrend des séances 1 à n − 1, calibration)', () => {
+  const r = voiceReport([...CAL(), ...ctl2(6.0, 0.18, 7.4)]);
+  assert.equal(r.controls, 2);
+  // Le point jugé (6,0 du 2e contrôle) n'entre pas : série 6,8 ; 6,8 ; 6,8 ; 6,0.
+  const detr = sdWithin([6.8, 6.8, 6.8, 6.0], defaultSd('debit', 6.8), { detrend: true });
+  assert.ok(Math.abs(r.metrics.debit.sdw - Math.max(detr, 0.272)) < 1e-12);
+  assert.ok(detr > 0.272, 'un saut dans la série passée élargit la zone de bruit du contrôle suivant');
   assert.equal(r.metrics.debit.verdict, 'pas-de-difference');
+  // Troisième contrôle au même niveau : la droite absorbe le palier, la calibration reprend la main.
+  const r3 = voiceReport([...CAL(), ...ctl2(6.0, 0.18, 7.4), ...ctl('k3', '2026-11-03', 6.0, 0.18, 7.4)]);
+  assert.equal(r3.metrics.debit.verdict, 'plus-pose');
 });
 
 test('le SDw ne descend jamais sous celui de la calibration', () => {
@@ -148,7 +150,7 @@ test('le SDw ne descend jamais sous celui de la calibration', () => {
 });
 
 test('voiceSummary en suivi : les phrases de D §4, la bande grise, jamais de score', () => {
-  const s = voiceSummary(voiceReport([...CAL(), ...ctl2(6.0, 0.18, 7.4)]), { untilControl: 6 });
+  const s = voiceSummary(voiceReport([...CAL(), ...ctl('k1', '2026-10-20', 6.0, 0.18, 7.4)]), { untilControl: 6 });
   assert.equal(s.headline, 'Ton débit : environ 6,0 syll/s (zone de bruit ±0,8). Au départ : 6,8.');
   assert.equal(s.verdict, 'Plus posé qu’au départ, au-delà du bruit.');
   assert.deepEqual(s.lines, [
@@ -164,12 +166,12 @@ test('voiceSummary en suivi : les phrases de D §4, la bande grise, jamais de sc
 });
 
 test('« plus rapide » : en mots neutres, avec « Ça arrive… » (M §4.4)', () => {
-  const s = voiceSummary(voiceReport([...CAL(), ...ctl2(7.7, 0.09, 8.4)]));
+  const s = voiceSummary(voiceReport([...CAL(), ...ctl('k1', '2026-10-20', 7.7, 0.09, 8.4)]));
   assert.equal(s.verdict, `Plus rapide qu’au départ. ${PLUS_RAPIDE_NOTE}`);
   assert.equal(PLUS_RAPIDE_NOTE, 'Ça arrive : fatigue, journée chargée. On revoit au prochain contrôle.');
   assert.equal(s.lines.filter((l) => l.includes('Ça arrive')).length, 0, 'une seule fois');
   // Moins de pauses seulement : la même phrase, une fois, à la ligne des pauses.
-  const p = voiceSummary(voiceReport([...CAL({ p: 0.25 }), ...ctl2(6.8, 0.1, 7.5)]));
+  const p = voiceSummary(voiceReport([...CAL({ p: 0.25 }), ...ctl('k1', '2026-10-20', 6.8, 0.1, 7.5)]));
   assert.equal(p.verdict, VERDICT_TEXT['pas-de-difference']);
   assert.equal(p.lines[0], `Tu t’arrêtes environ 10 % du temps (au départ : 25 %). Moins de pauses qu’au départ. ${PLUS_RAPIDE_NOTE}`);
 });
