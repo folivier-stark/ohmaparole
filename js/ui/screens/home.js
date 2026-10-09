@@ -2,13 +2,31 @@ import { h } from '../dom.js';
 import { dayKey, diffDays } from '../../core/dates.js';
 import {
   homeStatus, monthCount, dailyCount, totalCount, dueMilestone, referenceMilestones,
-  pendingFeedback, pendingGoalCheck, backupDue, whyCheckDue, lastBloc3,
+  backupDue, whyCheckDue, lastBloc3,
 } from '../../core/progress.js';
+import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
+import { createRdvCard } from '../components/rdv-card.js';
 
-const FEEDBACK = [['non', 'Non'], ['une', 'Une fois'], ['plusieurs', 'Plusieurs fois']];
-const GOAL_RESULT = [['oui', 'Oui'], ['partie', 'En partie'], ['non', 'Pas cette fois']];
+/** « Je sors du RDV » : l'heure de sortie donne la durée réelle, puis les questions arrivent aussitôt. */
+function exitButton(exit, { repo, navigate }) {
+  const btn = h('button', {
+    class: 'btn btn-out',
+    onclick: async () => {
+      btn.disabled = true;
+      try {
+        // Version stockée : la carte a pu commencer le retour entre-temps, la durée devient alors déclarée.
+        const fresh = (await repo.getSession(exit.id)) ?? exit;
+        if (fresh.rdvEndedAt == null && !rdvStarted(fresh)) await repo.saveSession(exitRdv(fresh, Date.now()));
+      } catch (e) {
+        console.error(e);
+      }
+      navigate('/home');
+    },
+  }, h('span', {}, 'Je sors du RDV'), h('small', {}, `${rdvQuestionIds(exit).length} questions, environ 15 secondes`));
+  return btn;
+}
 
 export async function render(root, { repo, content, navigate }) {
   const now = Date.now();
@@ -24,26 +42,12 @@ export async function render(root, { repo, content, navigate }) {
   const seed = diffDays('2026-01-01', today);
 
   let card = null;
-  const fb = pendingFeedback(sessions, now);
-  const goalCheck = fb ? null : pendingGoalCheck(sessions, now);
-  if (fb) {
-    card = h('div', { class: 'card' },
-      h('p', {}, 'Ton dernier rendez-vous : on t’a fait répéter ?'),
-      h('div', { class: 'row' }, FEEDBACK.map(([v, label]) => h('button', {
-        class: 'btn-small',
-        onclick: async () => { await repo.saveSession({ ...fb, feedback: v }); navigate('/home'); },
-      }, label))),
-      h('button', { class: 'btn-link', onclick: async () => { await repo.saveSession({ ...fb, feedbackSkipped: true }); navigate('/home'); } }, 'Passer'));
-  } else if (goalCheck) {
-    card = h('div', { class: 'card' },
-      h('p', {}, 'Ton objectif de RDV :'),
-      h('p', { class: 'why' }, `« ${goalCheck.goal} »`),
-      h('p', {}, 'Atteint ?'),
-      h('div', { class: 'row' }, GOAL_RESULT.map(([v, label]) => h('button', {
-        class: 'btn-small',
-        onclick: async () => { await repo.saveSession({ ...goalCheck, goalReached: v }); navigate('/home'); },
-      }, label))),
-      h('button', { class: 'btn-link', onclick: async () => { await repo.saveSession({ ...goalCheck, goalSkipped: true }); navigate('/home'); } }, 'Passer'));
+  let rdvCard = null;
+  const exit = rdvExitCandidate(sessions, now);
+  const rdvPending = pendingRdvReturn(sessions, now);
+  if (rdvPending) {
+    rdvCard = createRdvCard({ session: rdvPending, repo, onDone: () => navigate('/home') });
+    card = rdvCard.el;
   } else if (why && whyCheckDue(total, lastWhyCheck)) {
     card = h('div', { class: 'card' },
       h('p', {}, 'Ton pourquoi tient toujours ?'),
@@ -61,8 +65,10 @@ export async function render(root, { repo, content, navigate }) {
     card,
     backupDue(lastBackupAt, now, total) ? h('a', { class: 'backup-line', href: '#/settings' }, 'Pense à sauvegarder tes données ›') : null,
     h('div', { class: 'actions' },
+      exit ? exitButton(exit, { repo, navigate }) : null,
       h('a', { class: status.doneToday ? 'btn btn-calm' : 'btn btn-go', href: '#/session/daily' },
         h('span', {}, goLabel(status)),
         h('small', {}, goSubtitle({ comeback: status.comeback, dueMilestone: due, bloc3: nextBloc3(lastBloc3(sessions)) }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));
+  return () => rdvCard?.destroy();
 }

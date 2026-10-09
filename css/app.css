@@ -61,6 +61,15 @@ textarea.field { min-height: 96px; resize: vertical; }
 .context { font-size: 20px; margin: 24px 0 8px; }
 .backup-line { min-height: 56px; display: flex; align-items: center; margin: 8px 0; color: var(--accent-text); }
 .actions { margin-top: auto; display: flex; flex-direction: column; gap: 16px; padding-top: 24px; }
+.btn-out { background: var(--surface); border: 3px solid var(--accent-text); color: var(--text); }
+.btn:disabled { opacity: .6; }
+
+/* Retour après un RDV : une question à la fois */
+.rdv-q { font: 600 22px var(--font-title); margin: 4px 0 8px; }
+.answers { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.btn-answer { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; min-height: 56px; width: 100%; padding: 8px 14px; border: 2px solid var(--primary); border-radius: 14px; background: var(--surface); color: var(--text); font: 600 17px var(--font-title); text-align: left; cursor: pointer; }
+.btn-answer small { font: 15px var(--font-body); color: var(--text-2); }
+.noted { font: 600 22px var(--font-title); text-align: center; margin: 24px 0; }
 
 /* Séance */
 .ready { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 12px; cursor: pointer; }
@@ -128,6 +137,10 @@ textarea.field { min-height: 96px; resize: vertical; }
 .axis h3, .sub { font: 600 19px var(--font-title); margin: 0; }
 .sub { margin-top: 18px; }
 .trend { font-weight: 700; margin: 4px 0; }
+.rdv-line { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.rdv-line p { margin: 2px 0; }
+.rdv-label { font-weight: 700; }
+.src { display: block; font-weight: 400; font-size: 14px; color: var(--text-2); }
 .goal-num { font: 600 34px var(--font-title); margin: 0; }
 .goal-bar { height: 14px; border-radius: 7px; background: var(--border); overflow: hidden; margin: 8px 0 12px; }
 .goal-fill { height: 100%; background: var(--primary); border-radius: 7px; }

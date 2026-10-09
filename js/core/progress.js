@@ -75,13 +75,7 @@ export function homeStatus(sessions, todayKey) {
   };
 }
 
-export function pendingFeedback(sessions, now) {
-  return sessions
-    // Un RDV écourté reste un vrai RDV : 30 s de pratique suffisent pour demander le retour.
-    .filter((s) => s.type === 'prerdv' && (s.practicedSec ?? 0) >= 30 && s.feedback == null && !s.feedbackSkipped
-      && now - s.endedAt >= HOUR && now - s.endedAt <= 3 * DAY)
-    .sort((a, b) => b.endedAt - a.endedAt)[0] ?? null;
-}
+// Le retour après un RDV (anciennement pendingFeedback et pendingGoalCheck) est dans rdv.js.
 
 export function recentFeedback(sessions, n = 6) {
   return sessions
@@ -109,12 +103,4 @@ export function backupDue(lastBackupAt, now, total) {
 
 export function whyCheckDue(total, lastWhyCheckTotal = 0) {
   return total >= 7 && total - lastWhyCheckTotal >= 7;
-}
-
-/** 2e question du retour terrain : l'objectif saisi avant le RDV a-t-il été atteint ? */
-export function pendingGoalCheck(sessions, now) {
-  return sessions
-    .filter((s) => s.type === 'prerdv' && (s.goal ?? '').trim() && s.feedback != null
-      && s.goalReached == null && !s.goalSkipped && now - s.endedAt <= 3 * DAY)
-    .sort((a, b) => b.endedAt - a.endedAt)[0] ?? null;
 }

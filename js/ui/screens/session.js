@@ -8,7 +8,7 @@ import {
 import {
   homeStatus, dailyCount, dueMilestone, referenceMilestones, historyIds, lastBloc3, lastConsigneId,
 } from '../../core/progress.js';
-import { BLOCKS, PAS_COMPTE } from '../../core/texts.js';
+import { BLOCKS, PAS_COMPTE, RDV_NO_RECORD } from '../../core/texts.js';
 import { createTimer } from '../components/timer.js';
 import { startRecording } from '../../audio/recorder.js';
 import { createPlayer } from '../../audio/player.js';
@@ -283,17 +283,26 @@ export async function render(root, { repo, content, navigate, params }) {
         requestPersist();
       }
     } catch (e) { console.error(e); }
-    if (plan.type === 'prerdv') showRdvEnd();
+    if (plan.type === 'prerdv') await showRdvEnd();
     else if (record.counted) navigate(`/end/${record.id}`, { replace: true });
     else navigate('/home', { replace: true });
   }
 
-  function showRdvEnd() {
+  async function showRdvEnd() {
+    // Rappel unique, juste avant le premier vrai RDV : on n'enregistre jamais un rendez-vous réel.
+    let note = null;
+    try {
+      if (!(await repo.getMeta('rdvNoRecordShown', false))) {
+        await repo.setMeta('rdvNoRecordShown', true);
+        note = h('div', { class: 'card' }, h('p', { class: 'label' }, 'À savoir'), h('p', {}, RDV_NO_RECORD));
+      }
+    } catch (e) { console.error(e); }
     root.replaceChildren(h('div', { class: 'ready' },
       h('p', { class: 'ready-title' }, 'Tu y vas.'),
       record.goal ? h('p', { class: 'say small' }, record.goal) : null,
       why ? h('p', { class: 'why' }, `« ${why} »`) : null,
       h('p', { class: 'muted' }, 'Je suis là pour comprendre, pas pour convaincre.'),
+      note,
       h('button', { class: 'btn btn-rdv', onclick: () => navigate('/home', { replace: true }) }, 'J’y vais')));
   }
 

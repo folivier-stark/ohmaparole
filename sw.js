@@ -39,6 +39,7 @@ const ASSETS = [
   "./js/ui/dom.js",
   "./js/ui/components/chart.js",
   "./js/ui/components/compare.js",
+  "./js/ui/components/rdv-card.js",
   "./js/ui/components/timer.js",
   "./js/ui/screens/end.js",
   "./js/ui/screens/home.js",

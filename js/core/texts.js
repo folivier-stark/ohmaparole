@@ -37,6 +37,9 @@ export const TREND_TEXT = {
   probable: 'Ça bouge dans le bon sens. Probable, pas encore sûr.',
 };
 
+/** Rappelé une fois, à la fin de la première routine « Avant un RDV » (eval-rdv.md §4.5). */
+export const RDV_NO_RECORD = 'N’enregistre jamais un vrai rendez-vous : sans l’accord de la personne, c’est un délit (article 226-1 du Code pénal). L’appli, elle, ne garde que l’heure de ta sortie.';
+
 /** voice : l'axe porte sur la voix (diction). missing : réponses qui manquent avant de sortir du calibrage. */
 export function trendText(state, { voice = false, missing = 0 } = {}) {
   if (state === 'calibrage') return `${voice ? 'On apprend ta voix.' : 'On apprend.'} Encore ${plural(missing, 'réponse')}.`;

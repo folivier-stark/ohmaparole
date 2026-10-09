@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dailyCount, totalCount, monthCount, monthGrid, milestonesUpTo, nextMilestone, dueMilestone,
-  homeStatus, pendingFeedback, historyIds, lastBloc3, lastConsigneId, recentFeedback,
-  backupDue, whyCheckDue, referenceMilestones, pendingGoalCheck,
+  homeStatus, historyIds, lastBloc3, lastConsigneId, recentFeedback,
+  backupDue, whyCheckDue, referenceMilestones,
 } from '../js/core/progress.js';
 
 const S = (o) => ({ type: 'daily', counted: true, startedAt: 0, endedAt: 0, itemIds: [], ...o });
@@ -75,23 +75,6 @@ test('homeStatus', () => {
   assert.equal(homeStatus([], '2026-10-09').comeback, false);
 });
 
-test('pendingFeedback : au moins 1 h après, au plus 3 jours', () => {
-  const rdv = S({ id: 'r', type: 'prerdv', dateKey: '2026-10-09', endedAt: 0, feedback: null, practicedSec: 90 });
-  assert.equal(pendingFeedback([rdv], 0.5 * H), null);
-  assert.equal(pendingFeedback([rdv], 2 * H).id, 'r');
-  assert.equal(pendingFeedback([{ ...rdv, feedback: 'non' }], 2 * H), null);
-  assert.equal(pendingFeedback([{ ...rdv, feedbackSkipped: true }], 2 * H), null);
-  assert.equal(pendingFeedback([rdv], 4 * D), null);
-});
-
-test('pendingFeedback : un RDV écourté mais réel (≥ 30 s) compte, pas un simple essai', () => {
-  const rdv = S({ id: 'r', type: 'prerdv', dateKey: '2026-10-09', endedAt: 0, feedback: null });
-  assert.equal(pendingFeedback([{ ...rdv, counted: false, practicedSec: 45 }], 2 * H).id, 'r');
-  assert.equal(pendingFeedback([{ ...rdv, counted: false, practicedSec: 30 }], 2 * H).id, 'r');
-  assert.equal(pendingFeedback([{ ...rdv, counted: true, practicedSec: 10 }], 2 * H), null);
-  assert.equal(pendingFeedback([{ ...rdv, counted: false }], 2 * H), null);
-});
-
 test('historyIds, lastBloc3, lastConsigneId', () => {
   const ss = [
     S({ startedAt: 1, itemIds: ['a'], bloc3: 'ecoute' }),
@@ -132,15 +115,4 @@ test('referenceMilestones', () => {
   assert.deepEqual(referenceMilestones([
     { kind: 'reference', milestone: 1 }, { kind: 'session', milestone: null }, { kind: 'reference', milestone: 7 },
   ]), [1, 7]);
-});
-
-test("pendingGoalCheck : après la réponse « répéter », si un objectif a été saisi", () => {
-  const H = 3600000;
-  const base = { id: 'r', type: 'prerdv', counted: true, startedAt: 0, endedAt: 0, dateKey: '2026-10-09', practicedSec: 90, goal: 'Budget', goalReached: null };
-  assert.equal(pendingGoalCheck([{ ...base, feedback: null }], 2 * H), null);
-  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non' }], 2 * H).id, 'r');
-  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non', goalReached: 'oui' }], 2 * H), null);
-  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non', goalSkipped: true }], 2 * H), null);
-  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non', goal: ' ' }], 2 * H), null);
-  assert.equal(pendingGoalCheck([{ ...base, feedback: 'non' }], 4 * 24 * H), null);
 });
