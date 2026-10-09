@@ -1,4 +1,5 @@
-import { addDays, diffDays, weekdayMon0 } from './dates.js';
+import { addDays, diffDays } from './dates.js';
+import { naturalFrequency, probGreater } from './stats.js';
 
 export const GOAL_SESSIONS = 72;
 
@@ -11,18 +12,21 @@ export function programGoal(program) {
  * Axes de progrès. source : où lire la réponse dans une séance.
  * values : réponses possibles (jeux distincts pour les axes lus dans `ratings`).
  * positive : réponses qui comptent comme une réussite.
+ * « nsp » (Je ne sais pas) est une vraie réponse (eval-rdv.md §1.1) : elle compte dans le total, jamais en réussite.
  */
 export const AXES = {
   diction: { source: 'ratings', values: ['clair', 'moyen', 'brouillon'], positive: ['clair'] },
   ecoute: { source: 'ratings', values: ['oui', 'non'], positive: ['oui'] },
   posture: { source: 'ratings', values: ['pose', 'unpeu', 'pasencore'], positive: ['pose'] },
-  rdv: { source: 'feedback', values: ['non', 'une', 'plusieurs'], positive: ['non'] },
-  objectif: { source: 'goalReached', values: ['oui', 'partie', 'non'], positive: ['oui'] },
+  rdv: { source: 'feedback', values: ['non', 'une', 'plusieurs', 'nsp'], positive: ['non'] },
+  objectif: { source: 'goalReached', values: ['oui', 'partie', 'non', 'nsp'], positive: ['oui'] },
 };
 
+/** Règle de tendance (eval-methodologie.md §2.6) : P ≥ 0,90, deux semaines de suite, au moins 8 réponses de chaque côté. */
+export const TREND_MIN_ANSWERS = 8;
+export const TREND_MIN_PROB = 0.9;
+
 const isDailyCounted = (s) => s.counted === true && (s.type === 'daily' || s.type === 'comeback');
-const weekOf = (key) => addDays(key, -weekdayMon0(key));
-const rate = (positive, n) => (n ? Math.round((100 * positive) / n) : null);
 
 function answers(session, axis) {
   const { source, values } = AXES[axis];
@@ -64,44 +68,47 @@ export function goalProgress(sessions, todayKey, goal = GOAL_SESSIONS) {
   return { goal, done, left, pct: Math.min(100, Math.round((100 * done) / goal)), reached: done >= goal, etaKey };
 }
 
-/** Taux de réussite par semaine (lundi) pour un axe, sur les `limit` dernières semaines qui ont des réponses. */
-export function weeklyRate(sessions, axis, limit = 8) {
+/** Réponses de l'axe entre deux jours inclus (fromKey null : depuis le début) : k réussites sur n. */
+function countBetween(sessions, axis, fromKey, toKey) {
   const { positive } = AXES[axis];
-  const weeks = new Map();
-  for (const s of sessions) {
-    const vals = answers(s, axis);
-    if (!vals.length) continue;
-    const key = weekOf(s.dateKey);
-    const w = weeks.get(key) ?? { weekKey: key, n: 0, positive: 0 };
-    w.n += vals.length;
-    w.positive += vals.filter((v) => positive.includes(v)).length;
-    weeks.set(key, w);
-  }
-  return [...weeks.values()]
-    .sort((a, b) => (a.weekKey < b.weekKey ? -1 : 1))
-    .slice(-limit)
-    .map((w) => ({ ...w, pct: rate(w.positive, w.n) }));
+  const vals = sessions
+    .filter((s) => (fromKey == null || s.dateKey >= fromKey) && s.dateKey <= toKey)
+    .flatMap((s) => answers(s, axis));
+  return { k: vals.filter((v) => positive.includes(v)).length, n: vals.length };
 }
 
-function rateBetween(sessions, axis, fromKey, toKey) {
-  const { positive } = AXES[axis];
-  const vals = sessions.filter((s) => s.dateKey >= fromKey && s.dateKey <= toKey).flatMap((s) => answers(s, axis));
-  return { n: vals.length, pct: rate(vals.filter((v) => positive.includes(v)).length, vals.length) };
-}
-
-/** Taux sur 28 jours ; « en hausse » si +10 points face aux 28 jours d'avant, avec au moins 3 réponses de chaque côté. */
+/**
+ * Taux des 28 derniers jours, en fréquence naturelle « environ X sur 10 (entre a et b) » (Wilson à 95 %).
+ * total : toutes les réponses de l'axe jusqu'à aujourd'hui. Aucune comparaison ici : voir rateTrend.
+ */
 export function axisSummary(sessions, axis, todayKey) {
-  const recent = rateBetween(sessions, axis, addDays(todayKey, -27), todayKey);
-  const before = rateBetween(sessions, axis, addDays(todayKey, -55), addDays(todayKey, -28));
-  const rising = recent.n >= 3 && before.n >= 3 && recent.pct - before.pct >= 10;
-  return { n: recent.n, pct: recent.pct, rising };
+  const { k, n } = countBetween(sessions, axis, addDays(todayKey, -27), todayKey);
+  return { n, k, freq: naturalFrequency(k, n), total: countBetween(sessions, axis, null, todayKey).n };
 }
 
-/** Derniers objectifs de RDV saisis, du plus récent au plus ancien. */
+/** Un contrôle : P(taux des 28 jours finissant à refKey > taux des 28 jours d'avant). null sous 8 réponses d'un côté. */
+export function trendCheck(sessions, axis, refKey) {
+  const recent = countBetween(sessions, axis, addDays(refKey, -27), refKey);
+  const before = countBetween(sessions, axis, addDays(refKey, -55), addDays(refKey, -28));
+  if (recent.n < TREND_MIN_ANSWERS || before.n < TREND_MIN_ANSWERS) return null;
+  return probGreater(recent.k, recent.n, before.k, before.n);
+}
+
+/**
+ * État d'un taux : 'calibrage' (moins de 8 réponses au total), 'probable' (contrôle de la semaine courante
+ * ET de la précédente à P ≥ 0,90) ou 'tot' (trop tôt pour trancher). Aucune baisse n'existe ici.
+ */
+export function rateTrend(sessions, axis, todayKey) {
+  if (countBetween(sessions, axis, null, todayKey).n < TREND_MIN_ANSWERS) return 'calibrage';
+  const passes = (refKey) => (trendCheck(sessions, axis, refKey) ?? 0) >= TREND_MIN_PROB;
+  return passes(todayKey) && passes(addDays(todayKey, -7)) ? 'probable' : 'tot';
+}
+
+/** Derniers objectifs de RDV saisis, du plus récent au plus ancien, avec leur résultat et leur suite. */
 export function recentGoals(sessions, n = 5) {
   return sessions
     .filter((s) => s.type === 'prerdv' && (s.goal ?? '').trim())
     .sort((a, b) => b.startedAt - a.startedAt)
     .slice(0, n)
-    .map((s) => ({ dateKey: s.dateKey, goal: s.goal.trim(), result: s.goalReached ?? null }));
+    .map((s) => ({ dateKey: s.dateKey, goal: s.goal.trim(), result: s.goalReached ?? null, suite: s.rdvSuite ?? null }));
 }

@@ -5,7 +5,7 @@ export const BLOCKS = {
   echauffement: { label: 'Échauffement', tagline: 'Ta voix est prête avant ta première phrase.' },
   articulation: { label: 'Articulation', tagline: 'On te comprend du premier coup.' },
   ecoute: { label: 'Écoute', tagline: 'Ton client se sent entendu.' },
-  posture: { label: 'Posture', tagline: 'Tu inspires confiance avant de parler.' },
+  posture: { label: 'Posture', tagline: 'Posé avant de parler, tu parles mieux.' },
   jalon: { label: 'Ta voix', tagline: 'Même texte, pour entendre le chemin parcouru.' },
   rdv: { label: 'Avant un RDV', tagline: 'Tu y vas dans 90 secondes.' },
 };
@@ -30,6 +30,18 @@ export const RETOUR = [
 ];
 
 export const PAS_COMPTE = 'Pas encore compté. Une minute suffit.';
+
+/** États d'un taux (eval-methodologie.md §4.2). « Progrès confirmé » n'existe qu'aux bilans. */
+export const TREND_TEXT = {
+  tot: 'Trop tôt pour trancher.',
+  probable: 'Ça bouge dans le bon sens. Probable, pas encore sûr.',
+};
+
+/** voice : l'axe porte sur la voix (diction). missing : réponses qui manquent avant de sortir du calibrage. */
+export function trendText(state, { voice = false, missing = 0 } = {}) {
+  if (state === 'calibrage') return `${voice ? 'On apprend ta voix.' : 'On apprend.'} Encore ${plural(missing, 'réponse')}.`;
+  return TREND_TEXT[state] ?? TREND_TEXT.tot;
+}
 
 export function homeLine({ doneToday, comeback, yesterdayOff, dueMilestone, why, motivations, seed }) {
   if (doneToday) return "C'est fait pour aujourd'hui.";

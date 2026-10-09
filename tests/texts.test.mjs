@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { variant, homeLine, goLabel, goSubtitle, plural, RETOUR, FIN, milestoneMessage } from '../js/core/texts.js';
+import { variant, homeLine, goLabel, goSubtitle, plural, RETOUR, FIN, milestoneMessage, trendText, BLOCKS } from '../js/core/texts.js';
 
 test('variant boucle, y compris en négatif', () => {
   assert.equal(variant(['a', 'b'], 3), 'b');
@@ -34,4 +34,17 @@ test('plural, FIN, milestoneMessage', () => {
   assert.equal(FIN.length, 8);
   assert.match(milestoneMessage(30), /30 séances/);
   assert.match(milestoneMessage(60), /60 séances/);
+});
+
+test('trendText : le vocabulaire calibré, et rien d’autre', () => {
+  assert.equal(trendText('tot'), 'Trop tôt pour trancher.');
+  assert.equal(trendText('probable'), 'Ça bouge dans le bon sens. Probable, pas encore sûr.');
+  assert.equal(trendText('calibrage', { voice: true, missing: 2 }), 'On apprend ta voix. Encore 2 réponses.');
+  assert.equal(trendText('calibrage', { missing: 1 }), 'On apprend. Encore 1 réponse.');
+  // « Progrès confirmé » n'arrive qu'aux bilans (phase 5) : un état inconnu retombe sur « trop tôt ».
+  assert.equal(trendText('confirme'), 'Trop tôt pour trancher.');
+});
+
+test('le bloc posture ne promet pas d’inspirer confiance (eval-posture.md §7.3)', () => {
+  assert.equal(BLOCKS.posture.tagline, 'Posé avant de parler, tu parles mieux.');
 });

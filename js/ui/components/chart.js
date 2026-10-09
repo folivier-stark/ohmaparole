@@ -31,23 +31,3 @@ export function cumulativeChart(points, goal) {
     last ? svg('text', { x: PAD.l, y: H - 6, class: 'chart-label' }, shortDayMonth(points[0].dateKey)) : null,
     last ? svg('text', { x: W - PAD.r, y: H - 6, 'text-anchor': 'end', class: 'chart-label' }, "aujourd'hui") : null);
 }
-
-/** Mini-barres hebdomadaires de 0 à 100 %. weeks : [{ weekKey, pct }] */
-export function weeklyBars(weeks) {
-  const H = 110;
-  const n = Math.max(weeks.length, 1);
-  const bw = (W - PAD.l - PAD.r) / n;
-  const y = (v) => H - PAD.b - (v / 100) * (H - PAD.t - PAD.b);
-  return svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': `Taux par semaine : ${weeks.map((w) => `${w.pct} %`).join(', ')}` },
-    svg('line', { x1: PAD.l, x2: W - PAD.r, y1: y(0), y2: y(0), class: 'chart-axis' }),
-    svg('text', { x: PAD.l - 6, y: y(100) + 4, 'text-anchor': 'end', class: 'chart-label' }, '100 %'),
-    svg('text', { x: PAD.l - 6, y: y(0) + 4, 'text-anchor': 'end', class: 'chart-label' }, '0'),
-    weeks.map((w, i) => {
-      const bx = PAD.l + i * bw + bw * 0.18;
-      const top = y(w.pct);
-      return [
-        svg('rect', { x: bx, y: top, width: bw * 0.64, height: Math.max(0, y(0) - top), rx: 3, class: 'chart-bar' }),
-        svg('text', { x: bx + bw * 0.32, y: H - 6, 'text-anchor': 'middle', class: 'chart-label' }, shortDayMonth(w.weekKey)),
-      ];
-    }));
-}
