@@ -497,8 +497,28 @@ test('fox-art : sous 3 Ko, 3 expressions partout, écharpe au stade 6 seulement'
   }
 });
 
+test('louarn.css : variables --fox-* en clair et en sombre, animations coupées sous prefers-reduced-motion', () => {
+  const css = readText('css/louarn.css');
+  const dark = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
+  for (const [v, light, night] of [['--fox-body', '#C25A24', '#D9733A'], ['--fox-light', '#FFF4E4', '#FBEBD6'], ['--fox-dark', '#1F2A30', '#1F2A30']]) {
+    assert.ok(css.includes(`${v}: ${light}`), `${v} clair`);
+    assert.ok(dark.includes(`${v}: ${night}`), `${v} sombre`);
+  }
+  const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+  for (const cls of ['.lo-saut', '.lo-montee-avant', '.lo-montee-apres', '.lo-apparait', '.lo-glisse', '.lo-coche-trace']) assert.ok(reduced.includes(cls), cls);
+  // 1 s au plus : délai + durée de chaque animation.
+  for (const m of css.matchAll(/animation:\s*([^;]+);/g)) {
+    for (const part of m[1].split(/,(?![^(]*\))/)) {
+      if (/none/.test(part)) continue;
+      const [dur, delay = 0] = [...part.matchAll(/(\d*\.?\d+)s\b/g)].map((x) => Number(x[1]));
+      assert.ok(dur + delay <= 1, `${part.trim()} : ${dur + delay} s`);
+    }
+  }
+  assert.match(css.slice(0, 600), /APRÈS css\/app\.css/);
+});
+
 test('les modules de Louarn ne font aucune requête réseau', () => {
-  for (const f of ['js/core/louarn.js', 'js/ui/components/fox-art.js']) {
+  for (const f of ['js/core/louarn.js', 'js/ui/components/fox-art.js', 'js/ui/components/fox.js', 'js/ui/components/parcours.js']) {
     const src = readText(f);
     assert.doesNotMatch(src, /\bfetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|\bimport\s*\(|new Image|<img|url\(/, f);
     for (const m of src.matchAll(/https?:\/\/[^\s'"`)]+/g)) assert.equal(m[0], 'http://www.w3.org/2000/svg', `${f} : ${m[0]}`);
