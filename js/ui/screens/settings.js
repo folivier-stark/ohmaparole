@@ -1,0 +1,112 @@
+import { h } from '../dom.js';
+import { dayKey } from '../../core/dates.js';
+import { calendarUrl, alarmLabel } from '../../core/reminder.js';
+import { exportAll, readBackup, importBackup } from '../../data/backup.js';
+import { setSpeechEnabled } from '../../platform/speech.js';
+import { setHapticsEnabled } from '../../platform/haptics.js';
+import { storageStatus } from '../../platform/storage.js';
+import { APP_VERSION } from '../../version.js';
+
+const section = (title, ...children) => h('section', {}, h('h2', {}, title), children);
+
+function checkbox(label, checked, onChange) {
+  const input = h('input', { type: 'checkbox', checked, onchange: () => onChange(input.checked) });
+  return h('label', { class: 'check' }, input, label);
+}
+
+export async function render(root, { repo, content }) {
+  const [why, objective, prefs, lastBackupAt] = await Promise.all([
+    repo.getMeta('why', ''), repo.getMeta('objective', content.extras.objectifDefaut),
+    repo.getSettings(), repo.getMeta('lastBackupAt', null),
+  ]);
+  const appUrl = location.origin + location.pathname;
+
+  const objField = h('input', { class: 'field', type: 'text', value: objective });
+  const whyField = h('textarea', { class: 'field', rows: 3 });
+  whyField.value = why;
+  const savedNote = h('p', { class: 'muted' });
+
+  const time = h('input', { class: 'field', type: 'time', value: prefs.reminderTime });
+  time.addEventListener('change', async () => { prefs.reminderTime = time.value || '08:30'; await repo.setMeta('settings', prefs); });
+  const reminderNote = h('p', { class: 'muted' });
+
+  const backupInfo = h('p', { class: 'muted' }, lastBackupAt
+    ? `Dernière sauvegarde : ${new Date(lastBackupAt).toLocaleDateString('fr-FR')}`
+    : 'Aucune sauvegarde pour l’instant.');
+  const fileInput = h('input', {
+    type: 'file', accept: '.json,application/json', hidden: true,
+    onchange: async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      try {
+        const p = await readBackup(file);
+        if (!confirm(`${p.data.sessions.length} séances et ${p.data.recordings.length} enregistrements : importer ?`)) return;
+        const r = await importBackup(p);
+        backupInfo.textContent = `Restauré : ${r.sessions} séances, ${r.recordings} enregistrements.`;
+      } catch (e) {
+        backupInfo.textContent = e.message;
+      }
+    },
+  });
+
+  async function doExport() {
+    backupInfo.textContent = 'Préparation…';
+    const blob = await exportAll(APP_VERSION);
+    const name = `ohmaparole-sauvegarde-${dayKey(Date.now())}.json`;
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    await repo.setMeta('lastBackupAt', Date.now());
+    backupInfo.textContent = `Enregistré dans Téléchargements : ${name}`;
+  }
+
+  const storageInfo = h('p', { class: 'muted' }, '…');
+  storageStatus().then(({ persisted, usedMb }) => {
+    storageInfo.textContent = `Stockage protégé : ${persisted ? 'oui' : 'non'} · ${usedMb} Mo utilisés`;
+  });
+
+  root.replaceChildren(h('div', { class: 'settings' },
+    h('a', { class: 'back', href: '#/home' }, '‹ Accueil'),
+    h('h1', {}, 'Réglages'),
+    section('Ton objectif et ton pourquoi',
+      h('label', { class: 'label' }, 'Objectif'), objField,
+      h('label', { class: 'label' }, 'Pourquoi'), whyField,
+      h('button', {
+        class: 'btn-secondary',
+        onclick: async () => {
+          await repo.setMeta('objective', objField.value.trim());
+          await repo.setMeta('why', whyField.value.trim());
+          savedNote.textContent = 'Enregistré.';
+        },
+      }, 'Enregistrer'),
+      savedNote),
+    section('Rappel quotidien',
+      time,
+      h('a', {
+        class: 'btn-secondary', href: '#', target: '_blank', rel: 'noopener',
+        onclick: (e) => { e.currentTarget.href = calendarUrl({ dateKey: dayKey(Date.now()), time: time.value || '08:30', why: whyField.value, appUrl }); },
+      }, 'Créer le rappel dans Google Agenda'),
+      h('button', {
+        class: 'btn-link',
+        onclick: async () => {
+          try { await navigator.clipboard.writeText(alarmLabel(whyField.value)); reminderNote.textContent = 'Nom d’alarme copié.'; } catch { reminderNote.textContent = alarmLabel(whyField.value); }
+        },
+      }, 'Copier le nom pour une alarme'),
+      reminderNote),
+    section('Guidage',
+      checkbox('Voix de guidage', prefs.voice, async (v) => { prefs.voice = v; setSpeechEnabled(v); await repo.setMeta('settings', prefs); }),
+      checkbox('Vibrations', prefs.vibrate, async (v) => { prefs.vibrate = v; setHapticsEnabled(v); await repo.setMeta('settings', prefs); })),
+    section('Sauvegarde',
+      backupInfo,
+      h('button', { class: 'btn-secondary', onclick: doExport }, 'Sauvegarder mes données'),
+      h('button', { class: 'btn-link', onclick: () => fileInput.click() }, 'Restaurer une sauvegarde'),
+      fileInput),
+    section('Stockage', storageInfo),
+    section('À savoir',
+      h('p', {}, content.extras.noteClinique),
+      h('ul', {}, content.extras.gardeFous.map((g) => h('li', {}, g)))),
+    h('p', { class: 'muted' }, `OhMaParole · version ${APP_VERSION}`)));
+}
