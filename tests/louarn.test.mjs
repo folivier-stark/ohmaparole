@@ -276,11 +276,15 @@ test('homeBubble : le renard se tait quand une carte est affichée, et en mode d
 });
 
 test('homeBubble : ordre de priorité de l’accueil', () => {
-  assert.deepEqual(L.homeBubble({ ...HOME, status: { comeback: true, doneToday: false }, dueMilestone: 7 }), { moment: 'retour', context: [] });
-  assert.deepEqual(L.homeBubble({ ...HOME, dueMilestone: 7, status: { yesterdayOff: true } }), { moment: 'jalon', context: ['jalon:due'] });
+  assert.deepEqual(L.homeBubble({ ...HOME, status: { comeback: true, doneToday: false }, voiceDue: 'controle' }), { moment: 'retour', context: [] });
+  // Mesure de voix due (calibration ou contrôle) : les répliques jal-01 et jal-02 (« jour de photo sonore »).
+  assert.deepEqual(L.homeBubble({ ...HOME, voiceDue: 'controle', status: { yesterdayOff: true } }), { moment: 'jalon', context: ['jalon:due'] });
+  assert.deepEqual(L.homeBubble({ ...HOME, voiceDue: 'calibration' }), { moment: 'jalon', context: ['jalon:due'] });
   assert.deepEqual(L.homeBubble({ ...HOME, dailyCount: 0 }), { moment: 'accueil', context: ['premiereSeance', 'ecoute'] });
-  // J1 dû à la première séance : « on réenregistre » serait faux, c'est l’accueil de la première séance.
-  assert.deepEqual(L.homeBubble({ ...HOME, dailyCount: 0, dueMilestone: 1 }), { moment: 'accueil', context: ['premiereSeance', 'ecoute'] });
+  // Mesure due à la toute première séance : « on réenregistre » serait faux, c'est l’accueil de la première séance.
+  assert.deepEqual(L.homeBubble({ ...HOME, dailyCount: 0, voiceDue: 'calibration' }), { moment: 'accueil', context: ['premiereSeance', 'ecoute'] });
+  // L'ancien paramètre des jalons V1 ne fait plus rien : les jalons ne sont plus planifiés.
+  assert.deepEqual(L.homeBubble({ ...HOME, dueMilestone: 7 }), L.homeBubble(HOME));
   assert.deepEqual(L.homeBubble({ ...HOME, status: { doneToday: true, yesterdayOff: true } }), { moment: 'accueil', context: ['doneToday', 'ecoute'] });
   assert.deepEqual(L.homeBubble({ ...HOME, status: { yesterdayOff: true } }), { moment: 'accueil', context: ['yesterdayOff', 'ecoute'] });
   assert.deepEqual(L.homeBubble({ ...HOME, stade6Plus: true, status: { comeback: true } }), { moment: 'stade', context: ['stade:6+'] });
@@ -294,27 +298,29 @@ test('homeBubble : rotation sur 3 jours entre le pourquoi, un conseil et une ré
   assert.deepEqual(L.homeBubble({ ...HOME, seed: -2 }), { moment: 'tip', context: [] });
 });
 
-test('endBubble : stade, puis souvenir, puis thème, puis jalon, puis fin (une seule bulle)', () => {
+test('endBubble : stade, puis souvenir, puis thème, puis bloc voix (jalon), puis fin (une seule bulle)', () => {
   const s = { completed: true, bloc3: 'posture', milestone: null };
   // À 24 : fin du thème 6, fin du bloc 1, stade 3 et souvenir « fondations » : le stade parle.
   assert.deepEqual(L.endBubble({ prevCount: 23, newCount: 24, session: s, newSouvenirs: [{ id: 'fondations' }] }), { moment: 'stade', context: ['stade:3'] });
-  assert.deepEqual(L.endBubble({ prevCount: 3, newCount: 4, session: { ...s, milestone: 7 }, newSouvenirs: [{ id: 'premier-echo' }, { id: 'compris' }] }),
+  assert.deepEqual(L.endBubble({ prevCount: 3, newCount: 4, session: s, jalon: 'jalon:7', newSouvenirs: [{ id: 'premier-echo' }, { id: 'compris' }] }),
     { moment: 'jalon', context: ['trophee:premier-echo', 'trophee:compris'] });
-  assert.deepEqual(L.endBubble({ prevCount: 19, newCount: 20, session: { ...s, milestone: 30 } }), { moment: 'theme', context: ['theme:6'] });
-  assert.deepEqual(L.endBubble({ prevCount: 6, newCount: 7, session: { ...s, milestone: 7 } }), { moment: 'jalon', context: ['jalon:7'] });
-  assert.deepEqual(L.endBubble({ prevCount: 89, newCount: 90, session: { ...s, milestone: 90 } }), { moment: 'jalon', context: ['jalon:60+'] });
+  assert.deepEqual(L.endBubble({ prevCount: 19, newCount: 20, session: s, jalon: 'jalon:30' }), { moment: 'theme', context: ['theme:6'] });
+  // Le bloc voix (voiceJalonTag de voice-plan.js) porte les répliques jal-* qui étaient liées aux jalons V1.
+  assert.deepEqual(L.endBubble({ prevCount: 6, newCount: 7, session: s, jalon: 'jalon:7' }), { moment: 'jalon', context: ['jalon:7'] });
+  assert.deepEqual(L.endBubble({ prevCount: 89, newCount: 90, session: s, jalon: 'jalon:60+' }), { moment: 'jalon', context: ['jalon:60+'] });
+  assert.equal(L.endBubble({ prevCount: 6, newCount: 7, session: { ...s, milestone: 7 }, hour: 14 }).moment, 'fin', 'un jalon V1 ne se fête plus');
   assert.deepEqual(L.endBubble({ prevCount: 5, newCount: 6, session: s, hour: 20 }), { moment: 'fin', context: ['soir', 'posture'] });
   assert.deepEqual(L.endBubble({ prevCount: 5, newCount: 6, session: { ...s, completed: false }, encoreUne: true, hour: 14 }),
     { moment: 'fin', context: ['partielle', 'encoreUne', 'posture'] });
   assert.deepEqual(L.endBubble({ prevCount: 72, newCount: 73, session: s, hour: 14 }), { moment: 'theme', context: ['cycle:2'] });
-  assert.deepEqual(L.endBubble({ prevCount: 0, newCount: 1, session: { ...s, milestone: 1 }, newSouvenirs: ['premier-pas'] }),
+  assert.deepEqual(L.endBubble({ prevCount: 0, newCount: 1, session: s, jalon: 'jalon:1', newSouvenirs: ['premier-pas'] }),
     { moment: 'jalon', context: ['trophee:premier-pas'] }, 'un id seul est accepté');
 });
 
 test('endBubble en mode discret : seulement les grands moments', () => {
   const s = { completed: true, bloc3: 'ecoute', milestone: null };
   assert.equal(L.endBubble({ prevCount: 5, newCount: 6, session: s, discret: true }), null);
-  assert.equal(L.endBubble({ prevCount: 6, newCount: 7, session: { ...s, milestone: 7 }, discret: true }), null);
+  assert.equal(L.endBubble({ prevCount: 6, newCount: 7, session: s, jalon: 'jalon:7', discret: true }), null);
   assert.deepEqual(L.endBubble({ prevCount: 3, newCount: 4, session: s, discret: true }), { moment: 'theme', context: ['theme:2'] });
   assert.deepEqual(L.endBubble({ prevCount: 11, newCount: 12, session: s, discret: true }), { moment: 'stade', context: ['stade:2'] });
   assert.deepEqual(L.endBubble({ prevCount: 6, newCount: 7, session: s, discret: true, newSouvenirs: ['compris'] }), { moment: 'jalon', context: ['trophee:compris'] });
@@ -359,13 +365,39 @@ test('souvenir « premier-pas » : au moins une séance comptée', () => {
   assert.ok(has([S({ type: 'comeback' })], [], 'premier-pas'), 'une reprise comptée compte');
 });
 
-test('souvenirs de la voix : référence J1, J7 et J30', () => {
+test('souvenirs de la voix : les références J1, J7 et J30 de la V1 restent acquises', () => {
   const recs = [REC({ milestone: 7, createdAt: 5, dateKey: '2026-10-09' }), REC({ milestone: 1, createdAt: 1 }), REC({ milestone: 30, createdAt: 9, dateKey: '2026-11-20' })];
   assert.equal(has([], recs, 'voix-depart').dateKey, '2026-10-01');
   assert.equal(has([], recs, 'premier-echo').dateKey, '2026-10-09');
   assert.equal(has([], recs, 'grand-echo').dateKey, '2026-11-20');
   const wrong = [REC({ kind: 'session', milestone: 1 }), REC({ kind: 'partial', milestone: 7 }), REC({ milestone: 14 }), REC({ milestone: 60 }), REC({ milestone: null })];
   for (const id of ['voix-depart', 'premier-echo', 'grand-echo']) assert.equal(has([], wrong, id), null, id);
+});
+
+/** Une séance de voix de n prises valides (seules les prises valides sont enregistrées). */
+const VOICE = (sessionId, voiceCheck, sessionNumber, dateKey, n = 3) => Array.from({ length: n }, (_, i) => REC({
+  id: `${sessionId}-${i}`, milestone: null, voiceCheck, sessionId, sessionNumber, dateKey, createdAt: Date.parse(`${dateKey}T09:00:00Z`) + i,
+}));
+const CALIB = () => [
+  ...VOICE('c1', 'calibration', 1, '2026-10-01'), ...VOICE('c2', 'calibration', 2, '2026-10-02'), ...VOICE('c3', 'calibration', 3, '2026-10-03'),
+];
+
+test('souvenirs de la voix (phase 3) : voix de départ à la 1re mesure, échos aux contrôles de voix', () => {
+  assert.equal(has([], CALIB(), 'voix-depart').dateKey, '2026-10-01', 'la première séance de calibration valide');
+  assert.equal(has([], CALIB(), 'premier-echo'), null, 'la calibration ne fait pas d’écho');
+  const recs = [
+    ...CALIB(),
+    ...VOICE('k0', 'controle', 9, '2026-10-09', 1), // refusé : une seule prise valide
+    ...VOICE('k1', 'controle', 10, '2026-10-10'),
+    ...VOICE('k2', 'controle', 29, '2026-10-29'),
+    ...VOICE('k3', 'controle', 30, '2026-10-30'),
+  ];
+  assert.equal(has([], recs, 'premier-echo').dateKey, '2026-10-10', 'premier contrôle valide');
+  assert.equal(has([], recs, 'grand-echo').dateKey, '2026-10-30', 'premier contrôle valide à 30 séances ou plus');
+  assert.equal(has([], recs.filter((r) => r.sessionId !== 'k3'), 'grand-echo'), null);
+  // Une référence V1 plus ancienne garde sa date : un souvenir ne se perd jamais.
+  const mixed = [REC({ id: 'j7', milestone: 7, createdAt: Date.UTC(2026, 8, 8), dateKey: '2026-09-08' }), ...recs];
+  assert.equal(has([], mixed, 'premier-echo').dateKey, '2026-09-08');
 });
 
 test('souvenir « premier-rdv » : une routine RDV d’au moins 30 s', () => {

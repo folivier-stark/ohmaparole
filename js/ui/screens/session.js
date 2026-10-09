@@ -5,13 +5,14 @@ import {
   createRun, tick, next, pause, resume, skipBlock, stop, restartStep, currentStep,
   remainingMs, practicedMs, isCounted, pausedForMs,
 } from '../../core/session-engine.js';
-import {
-  homeStatus, dailyCount, dueMilestone, referenceMilestones, historyIds, lastBloc3, lastConsigneId,
-} from '../../core/progress.js';
+import { homeStatus, dailyCount, historyIds, lastBloc3, lastConsigneId } from '../../core/progress.js';
+import { voiceCheckDue } from '../../core/voice-plan.js';
 import { BLOCKS, PAS_COMPTE, RDV_NO_RECORD } from '../../core/texts.js';
 import { rdvBubble, stablePick, humeurFor } from '../../core/louarn.js';
 import { createTimer } from '../components/timer.js';
 import { createBulle } from '../components/fox.js';
+import { createVoiceCheck } from '../components/voice-check.js';
+import { takeRows } from '../../audio/voice-measure.js';
 import { startRecording } from '../../audio/recorder.js';
 import { createPlayer } from '../../audio/player.js';
 import { speak, stopSpeaking, canSpeak } from '../../platform/speech.js';
@@ -37,10 +38,11 @@ export async function render(root, { repo, content, navigate, params }) {
   if (kind === 'prerdv') {
     plan = buildRdvPlan({ content, dateKey: today, lastConsigneId: lastConsigneId(sessions) });
   } else {
-    const n = dailyCount(sessions) + 1;
+    const done = dailyCount(sessions);
     plan = buildDailyPlan({
-      content, history: historyIds(sessions), sessionNumber: n, dateKey: today, lastBloc3: lastBloc3(sessions),
-      dueMilestone: dueMilestone(n, referenceMilestones(recordings)), comeback: homeStatus(sessions, today).comeback,
+      content, history: historyIds(sessions), sessionNumber: done + 1, dateKey: today, lastBloc3: lastBloc3(sessions),
+      // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
+      voiceCheck: voiceCheckDue(recordings, done, { todayKey: today }), comeback: homeStatus(sessions, today).comeback,
     });
   }
 
@@ -48,7 +50,7 @@ export async function render(root, { repo, content, navigate, params }) {
     id: crypto.randomUUID(), type: plan.type, dateKey: today, startedAt: t0, endedAt: t0,
     practicedSec: 0, counted: false, completed: false,
     sessionNumber: plan.sessionNumber ?? null, cycle: plan.cycle ?? null, programWeek: plan.week ?? null,
-    bloc3: plan.bloc3 ?? null, milestone: plan.milestone ?? null, itemIds: plan.itemIds,
+    bloc3: plan.bloc3 ?? null, milestone: null, voiceCheck: plan.voiceCheck ?? null, voiceTakes: 0, itemIds: plan.itemIds,
     consigneId: plan.consigneId ?? null, ratings: {}, recordingIds: [], goal: '', feedback: null,
   };
 
@@ -63,6 +65,8 @@ export async function render(root, { repo, content, navigate, params }) {
   let lastTake = Promise.resolve(null);
   let goalInput = null;
   let lateRating = null;
+  let voiceCtl = null;
+  let voiceSettled = () => Promise.resolve();
 
   const player = createPlayer();
   const timer = createTimer();
@@ -90,7 +94,7 @@ export async function render(root, { repo, content, navigate, params }) {
     takeStarting = startRecording().catch(() => null);
   }
 
-  /** partial : prise interrompue par une pause, gardée mais jamais prise pour un jalon. */
+  /** partial : prise interrompue par une pause, gardée mais jamais prise pour une mesure. */
   function endTake({ partial = false } = {}) {
     const starting = takeStarting;
     const st = takeStep;
@@ -104,7 +108,7 @@ export async function render(root, { repo, content, navigate, params }) {
         if (!res || !res.blob.size) return null;
         const meta = {
           id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: partial ? 'partial' : st.recordKind,
-          milestone: st.milestone ?? null, itemId: st.itemId, sessionId: record.id,
+          milestone: null, itemId: st.itemId, sessionId: record.id,
           mimeType: res.mimeType, durationMs: res.durationMs, sizeBytes: res.blob.size,
         };
         await repo.saveRecording(meta, res.blob);
@@ -114,6 +118,20 @@ export async function render(root, { repo, content, navigate, params }) {
         return null;
       }
     })();
+  }
+
+  /** Une prise valide du bloc voix : enregistrée comme une prise de référence, et ses mesures écrites. */
+  async function saveVoiceTake({ blob, mimeType, durationMs, res }) {
+    const meta = {
+      id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: 'reference', milestone: null,
+      voiceCheck: plan.voiceCheck, sessionNumber: plan.sessionNumber, itemId: content.reference.id, sessionId: record.id,
+      mimeType, durationMs, sizeBytes: blob.size,
+    };
+    await repo.saveRecording(meta, blob);
+    record.recordingIds.push(meta.id);
+    record.voiceTakes += 1;
+    await repo.saveMeasures(takeRows(meta, plan.voiceCheck, res));
+    await save();
   }
 
   function renderHeader(st) {
@@ -155,6 +173,12 @@ export async function render(root, { repo, content, navigate, params }) {
       case 'breathe':
         add(title, h('div', { class: 'breath' }), lines);
         speak(st.speak);
+        break;
+      case 'voice':
+        stopSpeaking();
+        voiceCtl = createVoiceCheck({ step: st, saveTake: saveVoiceTake, onDone: advance });
+        voiceSettled = voiceCtl.settled;
+        add(voiceCtl.el);
         break;
       case 'record':
         stopSpeaking();
@@ -230,6 +254,7 @@ export async function render(root, { repo, content, navigate, params }) {
     stopSpeaking();
     player.stop();
     if (st.kind === 'record') endTake();
+    if (st.kind === 'voice' && voiceCtl) { voiceCtl.destroy(); voiceCtl = null; }
     if (st.kind === 'objective' && goalInput) record.goal = goalInput.value.trim();
   }
 
@@ -240,6 +265,8 @@ export async function render(root, { repo, content, navigate, params }) {
     const st = currentStep(run);
     if (prev) buzz(prev.block !== st.block ? 'block' : 'tick');
     renderHeader(st);
+    // Le bloc voix n'a pas de durée : pas de compte à rebours (il dure le temps des 3 prises).
+    timer.el.hidden = Boolean(st.untimed);
     enterStep(st);
     save();
   }
@@ -276,6 +303,7 @@ export async function render(root, { repo, content, navigate, params }) {
     releaseAwake();
     // Une prise ou une sauvegarde ratée ne doit jamais bloquer l'écran de fin.
     try { await lastTake; } catch (e) { console.error(e); }
+    try { await voiceSettled(); } catch (e) { console.error(e); }
     record.completed = !stoppedEarly;
     try { await save(); } catch (e) { console.error(e); }
     buzz('end');
@@ -323,6 +351,7 @@ export async function render(root, { repo, content, navigate, params }) {
   function onPaused() {
     const st = currentStep(run);
     if (st?.kind === 'record') endTake({ partial: true });
+    if (st?.kind === 'voice') voiceCtl?.pause();
     stopSpeaking();
     player.stop();
   }
@@ -339,6 +368,8 @@ export async function render(root, { repo, content, navigate, params }) {
       run = restartStep(run, now);
       enterStep(st);
     }
+    // Bloc voix : la prise interrompue repart à zéro, les prises déjà faites restent.
+    if (st?.kind === 'voice') voiceCtl?.resume();
   }
 
   function stopNow() {
@@ -413,11 +444,12 @@ export async function render(root, { repo, content, navigate, params }) {
     stopSpeaking();
     player.stop();
     releaseAwake();
+    voiceCtl?.destroy();
     if (run && !finished) {
       finished = true;
       if (takeStarting) endTake();
       stoppedEarly = true;
-      lastTake.then(() => save());
+      Promise.all([lastTake, voiceSettled()]).then(() => save());
     }
   };
 }

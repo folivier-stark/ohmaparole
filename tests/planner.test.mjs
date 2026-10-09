@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadTestContent } from './helpers.mjs';
-import { programPosition, nextBloc3, buildDailyPlan, buildRdvPlan } from '../js/core/planner.js';
+import { programPosition, nextBloc3, buildDailyPlan, buildRdvPlan, VOICE_CONSIGNE } from '../js/core/planner.js';
 
 const content = loadTestContent();
 const total = (p) => p.steps.reduce((s, x) => s + x.durationSec, 0);
@@ -67,40 +67,49 @@ test('articulation tirée de la semaine du programme', () => {
   assert.equal(p.week, 2);
 });
 
-test('jour de jalon : texte de référence enregistré, 300 s', () => {
-  const p = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10', dueMilestone: 7 });
-  const rec = p.steps.find((s) => s.kind === 'record');
-  assert.equal(rec.recordKind, 'reference');
-  assert.equal(rec.milestone, 7);
-  assert.equal(rec.itemId, content.reference.id);
-  assert.equal(p.milestone, 7);
-  assert.equal(total(p), 300);
-  assert.equal(p.steps.filter((s) => s.block === 'articulation').length, 0);
+test('jour de mesure de voix : le bloc voix en premier, à la place de l’articulation, 300 s', () => {
+  for (const voiceCheck of ['calibration', 'controle']) {
+    const p = buildDailyPlan({ content, sessionNumber: 9, dateKey: '2026-10-10', voiceCheck });
+    assert.equal(p.voiceCheck, voiceCheck);
+    assert.equal(p.steps[0].block, 'voix', 'au début, avant l’échauffement (D §3.4)');
+    assert.equal(p.steps.filter((s) => s.block === 'voix').length, 1);
+    assert.equal(p.steps.filter((s) => s.block === 'articulation').length, 0);
+    assert.deepEqual(p.steps.slice(1, 3).map((s) => s.block), ['echauffement', 'echauffement']);
+    assert.equal(total(p), 300);
+    assert.equal(p.itemIds.length, 3, 'échauffement × 2 + bloc 3');
+    assert.equal('milestone' in p, false, 'plus aucun jalon planifié');
+  }
 });
 
-test('reprise : 2 min, pas de bloc 3', () => {
-  const p = buildDailyPlan({ content, sessionNumber: 4, dateKey: '2026-10-10', comeback: true });
+test('bloc voix : consigne fixe (D §3.4), 3 prises du texte de référence, sans limite de temps', () => {
+  const v = buildDailyPlan({ content, sessionNumber: 1, dateKey: '2026-10-10', voiceCheck: 'calibration' }).steps[0];
+  assert.equal(v.kind, 'voice');
+  assert.equal(v.untimed, true);
+  assert.equal(v.title, 'Mesure de ta voix');
+  assert.deepEqual(v.lines, [VOICE_CONSIGNE]);
+  assert.equal(VOICE_CONSIGNE, 'Téléphone posé à 30 cm, même pièce. Lis comme si tu parlais à un prospect. Ne cherche pas à bien faire.');
+  assert.equal(v.takes, 3);
+  assert.equal(v.text, content.reference.texte);
+  assert.equal(v.itemId, content.reference.id);
+  assert.equal(v.syllables, 86);
+  assert.equal(v.voiceCheck, 'calibration');
+  assert.equal(v.recordKind, 'reference');
+});
+
+test('reprise + mesure de voix due : pas de bloc voix (elle reste due), 120 s', () => {
+  const p = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10', voiceCheck: 'controle', comeback: true });
   assert.equal(p.type, 'comeback');
   assert.equal(total(p), 120);
-  assert.equal(p.bloc3, null);
+  assert.equal(p.voiceCheck, null);
+  assert.equal(p.steps.filter((s) => s.block === 'voix').length, 0);
   assert.deepEqual(p.steps.filter((s) => s.block === 'articulation').map((s) => s.kind), ['record', 'replay']);
 });
 
-test('reprise + jalon dû = 120 s, milestone null', () => {
-  const p = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10', dueMilestone: 7, comeback: true });
-  assert.equal(p.type, 'comeback');
-  assert.equal(total(p), 120);
-  assert.equal(p.milestone, null);
-  assert.equal(p.steps.filter((s) => s.block === 'jalon').length, 0);
-  assert.deepEqual(p.steps.filter((s) => s.block === 'articulation').map((s) => s.kind), ['record', 'replay']);
-});
-
-test('jalon 1 : consigne de voix de départ, pas « même texte »', () => {
-  const p = buildDailyPlan({ content, sessionNumber: 1, dateKey: '2026-10-10', dueMilestone: 1 });
-  const first = p.steps.find((s) => s.block === 'jalon');
-  assert.deepEqual(first.lines, ['Ta voix de départ, pour la comparer plus tard.', 'Lis-le une fois dans ta tête.']);
-  const p7 = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10', dueMilestone: 7 });
-  assert.equal(p7.steps.find((s) => s.block === 'jalon').lines[0], 'Même texte que le premier jour.');
+test('sans mesure de voix due : articulation, aucun bloc voix', () => {
+  const p = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10' });
+  assert.equal(p.voiceCheck, null);
+  assert.equal(p.steps.filter((s) => s.block === 'voix').length, 0);
+  assert.equal(p.steps.filter((s) => s.block === 'articulation').length, 3);
 });
 
 test('avant RDV : 90 s, consigne différente de la précédente', () => {

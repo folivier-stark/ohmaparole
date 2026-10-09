@@ -84,6 +84,7 @@ textarea.field { min-height: 96px; resize: vertical; }
 .block-label { font-size: 24px; font-weight: 600; margin: 0; }
 .block-tagline { font-size: 15px; color: var(--text-2); margin: 0; }
 .timer { position: relative; width: 168px; height: 168px; margin: 12px auto; }
+.timer[hidden] { display: none; }
 .ring { width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring-bg { fill: none; stroke: var(--border); stroke-width: 8; }
 .ring-fg { fill: none; stroke: var(--primary); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .25s linear; }

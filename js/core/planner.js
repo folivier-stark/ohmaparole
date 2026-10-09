@@ -38,16 +38,21 @@ function articulationSteps(it) {
   ];
 }
 
-function referenceSteps(ref, milestone) {
-  const title = milestone === 1 ? 'Ta voix de départ' : `Jalon ${milestone}`;
-  const lines = milestone === 1
-    ? ['Ta voix de départ, pour la comparer plus tard.', 'Lis-le une fois dans ta tête.']
-    : ['Même texte que le premier jour.', 'Lis-le une fois dans ta tête.'];
-  return [
-    { block: 'jalon', kind: 'guide', durationSec: 20, itemId: ref.id, title, lines, text: ref.texte, speak: 'Lis le texte une fois dans ta tête.' },
-    { block: 'jalon', kind: 'record', durationSec: 60, itemId: ref.id, title, lines: ["À ton rythme naturel. J'enregistre."], text: ref.texte, speak: null, recordKind: 'reference', milestone },
-    { block: 'jalon', kind: 'replay', durationSec: 40, itemId: ref.id, title: 'Réécoute', lines: ['Écoute-toi, sans te juger.'], text: ref.texte, speak: null, rate: false },
-  ];
+/** Consigne fixe du bloc « Mesure de ta voix », toujours la même (eval-diction.md §3.4, « Effet test »). */
+export const VOICE_CONSIGNE = 'Téléphone posé à 30 cm, même pièce. Lis comme si tu parlais à un prospect. Ne cherche pas à bien faire.';
+export const VOICE_TAKES = 3;
+
+/**
+ * Bloc « Mesure de ta voix » (spec V2 §4) : un seul pas, sans limite de temps (untimed), que l'écran de
+ * séance déroule en 3 prises du texte de référence. Durée nominale 120 s, celle de l'articulation qu'il
+ * remplace : la séance reste à 5 min environ. Il remplace les jalons J1, J7, J14, J30 et J60 de la V1.
+ */
+function voiceSteps(ref, voiceCheck) {
+  return [{
+    block: 'voix', kind: 'voice', durationSec: 120, untimed: true, itemId: ref.id, title: 'Mesure de ta voix',
+    lines: [VOICE_CONSIGNE], text: ref.texte, syllables: ref.syllabes, takes: VOICE_TAKES, voiceCheck,
+    recordKind: 'reference', speak: null,
+  }];
 }
 
 function ecouteSteps(it) {
@@ -58,7 +63,11 @@ function ecouteSteps(it) {
   ];
 }
 
-export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, lastBloc3 = null, dueMilestone = null, comeback = false }) {
+/**
+ * voiceCheck : voiceCheckDue() (js/core/voice-plan.js), 'calibration' | 'controle' | null. Le bloc voix vient
+ * au début, avant l'échauffement (D §3.4 : la parole « à froid »), et prend la place de l'articulation.
+ */
+export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, lastBloc3 = null, voiceCheck = null, comeback = false }) {
   const weeksPerCycle = content.program.weeks.length;
   const { cycle, week } = programPosition(sessionNumber, weeksPerCycle, content.program.sessionsPerWeek ?? SESSIONS_PER_WEEK);
   const seed = `${dateKey}#${sessionNumber}`;
@@ -66,14 +75,15 @@ export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, 
   const warm = ofBloc(content, 'echauffement').filter((e) => e.semaineMin <= maxWeek);
   const voix = pickLeastRecent(warm.filter((e) => e.type === 'voix'), history, `${seed}:voix`);
   const moteur = pickLeastRecent(warm.filter((e) => e.type === 'moteur'), history, `${seed}:moteur`);
-  const steps = [guide('echauffement', voix, 30), guide('echauffement', moteur, 30)];
+  // Une reprise ne porte jamais de mesure de voix : elle reste due pour la séance suivante.
+  const voice = comeback ? null : voiceCheck;
+  const steps = [
+    ...(voice ? voiceSteps(content.reference, voice) : []),
+    guide('echauffement', voix, 30), guide('echauffement', moteur, 30),
+  ];
   const itemIds = [voix.id, moteur.id];
-  // Une reprise ne porte jamais de jalon : il reste dû pour la séance suivante.
-  const milestone = comeback ? null : dueMilestone;
 
-  if (milestone) {
-    steps.push(...referenceSteps(content.reference, milestone));
-  } else {
+  if (!voice) {
     const art = pickLeastRecent(weekItems(content, week, 'articulation'), history, `${seed}:art`);
     itemIds.push(art.id);
     const artSteps = articulationSteps(art);
@@ -90,7 +100,7 @@ export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, 
     steps.push(...(bloc3 === 'ecoute' ? ecouteSteps(it) : [guide('posture', it, 120)]));
   }
 
-  return { type: comeback ? 'comeback' : 'daily', sessionNumber, cycle, week, bloc3, milestone, itemIds, steps };
+  return { type: comeback ? 'comeback' : 'daily', sessionNumber, cycle, week, bloc3, voiceCheck: voice ?? null, itemIds, steps };
 }
 
 export function buildRdvPlan({ content, dateKey, lastConsigneId = null }) {

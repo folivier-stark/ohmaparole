@@ -113,7 +113,7 @@ export async function render(root, { repo, content, navigate }) {
     }
     show(
       h('h1', {}, 'Ta voix d’aujourd’hui'),
-      h('p', {}, 'Lis ce texte à voix haute. Tu le réentendras dans 7, 14 et 30 séances.'),
+      h('p', {}, 'Lis ce texte à voix haute. Tu le réentendras plus tard, à côté de tes prochaines lectures.'),
       h('p', { class: 'say' }, content.reference.texte),
       status,
       actions,

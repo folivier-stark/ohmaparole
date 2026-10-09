@@ -91,7 +91,7 @@ test('endCelebration : séance ordinaire, bulle de fin avec son contexte, rien �
 });
 
 test('endCelebration : souvenirs du jour fêtés, souvenirs anciens rangés sans bulle', () => {
-  const r = end({ prevCount: 0, newCount: 1, session: { ...S, milestone: 1 }, souvenirs: [SV('voix-depart', '2026-09-01'), SV('premier-pas')] });
+  const r = end({ prevCount: 0, newCount: 1, jalon: 'jalon:1', souvenirs: [SV('voix-depart', '2026-09-01'), SV('premier-pas')] });
   assert.deepEqual(ids(r.celebrate), ['premier-pas']);
   assert.deepEqual(r.bubble, { moment: 'jalon', context: ['trophee:premier-pas'] });
   assert.equal(texte(r.bubble), 'tro-01');
@@ -126,13 +126,17 @@ test('stade6PlusToday : à partir de 72 séances, un seul jour, celui de la prem
   assert.equal(L.stade6PlusToday({ dailyCount: Number.NaN, shownOn: null, todayKey: TODAY }), false);
 });
 
-// ---------- TODO de la phase 3 ----------
+// ---------- TODO de la phase 3, résolu ----------
 
-test('louarn.js : un seul TODO, celui des souvenirs liés aux jalons J7 et J30 (phase 3)', async () => {
+test('louarn.js : plus de TODO, les échos sont reliés aux contrôles de voix', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../js/core/louarn.js', import.meta.url), 'utf8');
-  const todos = src.match(/TODO/g) ?? [];
-  assert.equal(todos.length, 1);
-  const at = src.indexOf('TODO');
-  assert.match(src.slice(at, src.indexOf("'grand-echo'", at) + 25), /phase 3[\s\S]*'premier-echo': ref\(7\)[\s\S]*'grand-echo': ref\(30\)/);
+  assert.equal((src.match(/TODO/g) ?? []).length, 0);
+  assert.match(src, /voiceEchoes/);
+});
+
+test('endCelebration : la réplique de fin du bloc voix passe par jalon', () => {
+  const r = end({ prevCount: 8, newCount: 9, jalon: 'jalon:14' });
+  assert.deepEqual(r.bubble, { moment: 'jalon', context: ['jalon:14'] });
+  assert.equal(texte(r.bubble), 'jal-06');
 });

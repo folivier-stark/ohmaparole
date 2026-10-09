@@ -39,28 +39,8 @@ export function monthGrid(sessions, year, month, todayKey) {
   return { leading: weekdayMon0(`${year}-${pad(month)}-01`), cells };
 }
 
-const FIRST_MILESTONES = [1, 7, 14, 30];
-
-export function milestonesUpTo(n) {
-  const out = FIRST_MILESTONES.filter((m) => m <= n);
-  for (let m = 60; m <= n; m += 30) out.push(m);
-  return out;
-}
-
-export function nextMilestone(n) {
-  const first = FIRST_MILESTONES.find((m) => m > n);
-  return first ?? (Math.floor(n / 30) + 1) * 30;
-}
-
-/** Jalon à enregistrer à la séance n : le plus récent atteint, seulement s'il manque. */
-export function dueMilestone(nextSessionNumber, recordedMilestones) {
-  const m = milestonesUpTo(nextSessionNumber).at(-1);
-  return m && !recordedMilestones.includes(m) ? m : null;
-}
-
-export function referenceMilestones(recordings) {
-  return recordings.filter((r) => r.kind === 'reference' && r.milestone != null).map((r) => r.milestone);
-}
+// Les jalons J1, J7, J14, J30 et J60 de la V1 ne sont plus planifiés : le calendrier des mesures de la
+// voix (calibration puis contrôles) est dans voice-plan.js (spec V2 §4).
 
 export function homeStatus(sessions, todayKey) {
   const keys = [...practicedDayKeys(sessions)].sort();

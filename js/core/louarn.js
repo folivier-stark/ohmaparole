@@ -17,6 +17,7 @@
 // stablePick() garde la réplique toute la journée tant que l'état ne change pas (meta louarn.jour).
 import { pickLeastRecent } from './pick.js';
 import { dayKey as dayKeyOf, diffDays } from './dates.js';
+import { voiceChecks, voiceEchoes } from './voice-plan.js';
 
 const freeze = (list) => Object.freeze(list.map((x) => Object.freeze(x)));
 
@@ -227,19 +228,21 @@ export function motivationLines(motivations) {
 // Chaque fonction renvoie { moment, context } à passer à pickLine / stablePick, ou null : le renard se tait.
 
 /**
- * Accueil. Ordre : carte affichée (silence) → mode discret (silence) → stade 6+ → retour → jalon dû
+ * Accueil. Ordre : carte affichée (silence) → mode discret (silence) → stade 6+ → retour → mesure de voix due
  * → première séance → fait aujourd'hui → pause hier → rotation sur 3 jours (seed comme homeLine) :
  * 0 le pourquoi (moment 'pourquoi', texte « Ton pourquoi : … » hors répliques), 1 un conseil, 2 une réplique.
+ * voiceDue : voiceCheckDue() de voice-plan.js. Le bloc voix a remplacé les jalons V1 : 'jalon:due' (jal-01,
+ * jal-02) annonce une calibration ou un contrôle.
  */
 export function homeBubble({
-  cardShown = false, discret = false, status = {}, dueMilestone = null, dailyCount = 0,
+  cardShown = false, discret = false, status = {}, voiceDue = null, dailyCount = 0,
   why = '', seed = 0, hour, bloc3 = null, stade6Plus = false,
 } = {}) {
   if (cardShown || discret) return null;
   if (stade6Plus) return { moment: 'stade', context: ['stade:6+'] };
   if (status.comeback) return { moment: 'retour', context: [] };
-  // J1 : « on réenregistre le texte du début » serait faux ; c'est l'accueil de la première séance.
-  if (dueMilestone > 1) return { moment: 'jalon', context: ['jalon:due'] };
+  // Toute première séance : « on réenregistre le texte du début » serait faux ; c'est l'accueil de la première séance.
+  if (voiceDue && norm(dailyCount) > 0) return { moment: 'jalon', context: ['jalon:due'] };
   const ctx = contextTags({ hour, bloc3, dailyCount });
   if (norm(dailyCount) === 0) return { moment: 'accueil', context: ['premiereSeance', ...ctx] };
   if (status.doneToday) return { moment: 'accueil', context: ['doneToday', ...ctx] };
@@ -251,13 +254,15 @@ export function homeBubble({
 }
 
 /**
- * Fin d'une séance comptée. Une seule bulle : stade → souvenir → thème → jalon → fin.
+ * Fin d'une séance comptée. Une seule bulle : stade → souvenir → thème → bloc voix (jalon) → fin.
  * newSouvenirs : souvenirs à fêter (souvenirsToCelebrate().celebrate), objets ou ids.
+ * jalon : voiceJalonTag() de voice-plan.js ('jalon:1', 'jalon:7', 'jalon:14', 'jalon:30', 'jalon:60+' ou null),
+ * la condition des répliques jal-* depuis que le bloc voix a remplacé les jalons V1.
  * Mode discret : seulement stade, souvenir et thème (le message de fin redevient du texte simple).
  */
 export function endBubble({
   prevCount, newCount, session = {}, newSouvenirs = [], encoreUne = false, hour, discret = false,
-  sessionsPerWeek = SESSIONS_PER_THEME,
+  sessionsPerWeek = SESSIONS_PER_THEME, jalon = null,
 } = {}) {
   const stage = stageUp(prevCount, newCount);
   if (stage) return { moment: 'stade', context: [`stade:${stage.id}`] };
@@ -265,7 +270,7 @@ export function endBubble({
   const theme = themeTag(prevCount, newCount, sessionsPerWeek);
   if (theme) return { moment: 'theme', context: [theme] };
   if (discret) return null;
-  if (session.milestone) return { moment: 'jalon', context: [`jalon:${session.milestone >= 60 ? '60+' : session.milestone}`] };
+  if (jalon) return { moment: 'jalon', context: [jalon] };
   return {
     moment: 'fin',
     context: [
@@ -289,7 +294,7 @@ export function rdvBubble({ goal = '', discret = false } = {}) {
  *   stage      { from, to } (ids) : montée de stade à fêter, jamais un stade déjà fêté ; sinon null ;
  *   next       nextStage(newCount) quand stage (ligne « Prochain : … »), sinon null ;
  *   bubble     { moment, context } de la bulle (endBubble). Stade déjà fêté : la priorité 1 saute, on passe
- *              au souvenir, puis au thème, puis au jalon et à la fin ;
+ *              au souvenir, puis au thème, puis au bloc voix (jalon) et à la fin ;
  *   secondary  arbitrage du contrôleur : aux fins de bloc (24, 48, 72), la réplique du nouveau bloc
  *              ou des langues (th-07, th-13, th-19) s'affiche sous la bulle de stade, sans être perdue ;
  *   theme      thème terminé (themeCompleted), sinon null ;
@@ -298,13 +303,13 @@ export function rdvBubble({ goal = '', discret = false } = {}) {
  */
 export function endCelebration({
   prevCount, newCount, session = {}, souvenirs: list = [], fetes = [], todayKey, encoreUne = false, hour,
-  discret = false, sessionsPerWeek = SESSIONS_PER_THEME,
+  discret = false, sessionsPerWeek = SESSIONS_PER_THEME, jalon = null,
 } = {}) {
   const done = fetes ?? [];
   const up = stageUp(prevCount, newCount);
   const stage = up && !done.includes(`stade:${up.id}`) ? up : null;
   const kept = souvenirsToCelebrate(list ?? [], done, todayKey);
-  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek };
+  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek, jalon };
   const tag = themeTag(prevCount, newCount, sessionsPerWeek);
   let bubble;
   if (!up || stage) bubble = endBubble({ prevCount, newCount, ...rest });
@@ -342,9 +347,17 @@ export function sessionCounts(sessions, session) {
 
 // ── Souvenirs (G §4.3) ──────────────────────────────────────────────────────────────────────────
 
+const atOf = (x) => x.startedAt ?? x.createdAt ?? 0;
+/** La plus ancienne des sources qui existent, ou undefined. */
+const earliest = (...xs) => xs.filter(Boolean).sort((a, b) => atOf(a) - atOf(b))[0];
+
 /**
  * Souvenirs obtenus, recalculés depuis les séances et les enregistrements (rien n'est stocké).
  * Date : celle de la première séance (ou du premier enregistrement) qui remplit la condition.
+ * Voix (phase 3, voice-plan.js) : « La voix de départ » à la référence J1 ou à la 1re séance de calibration
+ * valide ; « Le premier écho » au premier contrôle de voix valide ; « Le grand écho » au premier contrôle
+ * valide fait à 30 séances comptées ou plus. Les références J7 et J30 de la V1 les ont déjà donnés : la plus
+ * ancienne date gagne, un souvenir obtenu ne se perd jamais.
  * Renvoie [{ id, nom, ligne, dateKey, at }], triés par date d'obtention.
  */
 export function souvenirs(sessions = [], recordings = []) {
@@ -352,14 +365,14 @@ export function souvenirs(sessions = [], recordings = []) {
   const daily = byStart.filter(isDailyCounted);
   const prerdv = byStart.filter((s) => s.type === 'prerdv');
   const refs = [...(recordings ?? [])].filter((r) => r.kind === 'reference').sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-  const ref = (m) => refs.find((r) => r.milestone === m);
+  const ref = (m) => refs.find((r) => r.milestone === m && !r.voiceCheck);
+  const echoes = voiceEchoes(refs);
+  const firstCalibration = voiceChecks(refs).find((c) => c.valid && c.kind === 'calibration');
   const found = {
     'premier-pas': daily[0],
-    'voix-depart': ref(1),
-    // TODO(phase 3) : « Le premier écho » et « Le grand écho », comme les répliques jal-*, restent liés aux
-    // références J7 et J30 de la V1. La phase 3 les reliera aux contrôles de voix (spec V2 §4).
-    'premier-echo': ref(7),
-    'grand-echo': ref(30),
+    'voix-depart': earliest(ref(1), firstCalibration),
+    'premier-echo': earliest(ref(7), echoes.premier),
+    'grand-echo': earliest(ref(30), echoes.grand),
     'premier-rdv': prerdv.find((s) => (s.practicedSec ?? 0) >= 30),
     compris: prerdv.find((s) => s.feedback === 'non'),
     'objectif-tenu': prerdv.find((s) => s.goalReached === 'oui'),

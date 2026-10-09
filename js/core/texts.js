@@ -6,7 +6,7 @@ export const BLOCKS = {
   articulation: { label: 'Articulation', tagline: 'On te comprend du premier coup.' },
   ecoute: { label: 'Écoute', tagline: 'Ton client se sent entendu.' },
   posture: { label: 'Posture', tagline: 'Posé avant de parler, tu parles mieux.' },
-  jalon: { label: 'Ta voix', tagline: 'Même texte, pour entendre le chemin parcouru.' },
+  voix: { label: 'Ta voix', tagline: 'Même texte, pour mesurer le chemin parcouru.' },
   rdv: { label: 'Avant un RDV', tagline: 'Tu y vas dans 90 secondes.' },
 };
 
@@ -55,11 +55,12 @@ export function frequencyText({ approx, low, high, bound }) {
   return `environ ${approx} sur 10${edge} (entre ${low} et ${high})`;
 }
 
-export function homeLine({ doneToday, comeback, yesterdayOff, dueMilestone, why, motivations, seed }) {
+/** voiceDue : voiceCheckDue() de voice-plan.js. Les jalons V1 ne sont plus annoncés (spec V2 §4). */
+export function homeLine({ doneToday, comeback, yesterdayOff, voiceDue = null, why, motivations, seed }) {
   if (doneToday) return "C'est fait pour aujourd'hui.";
   if (comeback) return variant(RETOUR, seed);
-  if (dueMilestone === 1) return "Aujourd'hui, on enregistre ta voix de départ.";
-  if (dueMilestone) return `Jalon ${dueMilestone} aujourd'hui : tu vas réentendre ta voix du début.`;
+  if (voiceDue === 'calibration') return "Aujourd'hui, on commence par mesurer ta voix.";
+  if (voiceDue === 'controle') return "Aujourd'hui, contrôle de ta voix : même texte, 3 lectures.";
   if (yesterdayOff) return "Hier, pause. Aujourd'hui, 1 minute suffit pour que ça compte.";
   if (why && seed % 3 === 0) return `Ton pourquoi : « ${why} »`;
   return variant(motivations, seed);
@@ -70,16 +71,35 @@ export function goLabel({ doneToday, comeback }) {
   return doneToday ? 'Encore une ? · 5 min' : 'Go · 5 min';
 }
 
-export function goSubtitle({ comeback, dueMilestone, bloc3 }) {
+export function goSubtitle({ comeback, voiceDue = null, bloc3 }) {
   if (comeback) return 'Échauffement + une prise';
   const third = bloc3 === 'posture' ? 'posture' : 'écoute';
-  return dueMilestone ? `Aujourd'hui : ta voix de référence + ${third}` : `Aujourd'hui : articulation + ${third}`;
+  return voiceDue ? `Aujourd'hui : mesure de ta voix + ${third}` : `Aujourd'hui : articulation + ${third}`;
 }
 
-export function milestoneMessage(m) {
-  if (m === 1) return 'Ta voix de départ est enregistrée. Tu la réentendras à la 7ᵉ séance.';
-  if (m === 7) return '7 séances. Écoute ta voix du début, puis celle d’aujourd’hui. Si tu n’entends pas encore de différence, c’est normal à ce stade.';
-  if (m === 14) return '14 séances. Même texte, deux voix. À toi de juger.';
-  if (m === 30) return '30 séances. Un mois de pratique, à ton rythme. Même texte : ce que tu entends, c’est toi qui le dis. Rien n’est noté ici.';
-  return `${m} séances. Même texte, deux voix. À toi de juger.`;
+/** Prise du bloc voix refusée par l'analyse (js/audio/analyze.js) : le message à Fred, sans jugement. */
+export const VOICE_REFUS = Object.freeze({
+  bruit: 'Trop de bruit : change de pièce.',
+  saturation: 'Trop près ou trop fort : recule un peu.',
+  'sans-parole': 'On n’a pas entendu la lecture.',
+  'trop-court': 'On n’a pas entendu la lecture.',
+  decodage: 'Le téléphone n’a pas pu lire cette prise.',
+});
+
+export const refusalText = (reason) => VOICE_REFUS[reason] ?? VOICE_REFUS.decodage;
+
+/**
+ * Fin d'une séance qui avait un bloc « Mesure de ta voix ». null sans bloc voix.
+ * calibrationRemaining : après cette séance (voice-plan.calibrationRemaining) ; untilControl : sessionsUntilControl.
+ */
+export function voiceEndMessage({ voiceCheck, validTakes = 0, calibrationRemaining = 0, untilControl = null }) {
+  if (!voiceCheck) return null;
+  if (validTakes < 2) return 'Pas assez de prises valides cette fois : la mesure revient à ta prochaine séance.';
+  if (voiceCheck === 'controle') return 'Contrôle de ta voix fait. Le résultat est dans Progression.';
+  if (calibrationRemaining > 0) {
+    const when = calibrationRemaining > 1 ? 'à tes prochaines séances' : 'à ta prochaine séance';
+    return `Mesure de ta voix faite. On apprend ta voix : encore ${plural(calibrationRemaining, 'mesure')}, ${when}.`;
+  }
+  const next = Number.isFinite(untilControl) && untilControl > 1 ? ` Premier contrôle dans ${plural(untilControl, 'séance')}.` : '';
+  return `Ta voix de départ est mesurée.${next}`;
 }

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dailyCount, totalCount, monthCount, monthGrid, milestonesUpTo, nextMilestone, dueMilestone,
+  dailyCount, totalCount, monthCount, monthGrid,
   homeStatus, historyIds, lastBloc3, lastConsigneId, recentFeedback,
-  backupDue, whyCheckDue, referenceMilestones,
+  backupDue, whyCheckDue,
 } from '../js/core/progress.js';
 
 const S = (o) => ({ type: 'daily', counted: true, startedAt: 0, endedAt: 0, itemIds: [], ...o });
@@ -37,23 +37,9 @@ test('monthGrid', () => {
   assert.equal(g.cells[9].kind, 'future');
 });
 
-test('jalons', () => {
-  assert.deepEqual(milestonesUpTo(6), [1]);
-  assert.deepEqual(milestonesUpTo(30), [1, 7, 14, 30]);
-  assert.deepEqual(milestonesUpTo(95), [1, 7, 14, 30, 60, 90]);
-  assert.equal(nextMilestone(1), 7);
-  assert.equal(nextMilestone(14), 30);
-  assert.equal(nextMilestone(30), 60);
-  assert.equal(nextMilestone(61), 90);
-});
-
-test('dueMilestone : le plus récent jalon atteint, s il manque', () => {
-  assert.equal(dueMilestone(1, []), 1);
-  assert.equal(dueMilestone(3, [1]), null);
-  assert.equal(dueMilestone(7, [1]), 7);
-  assert.equal(dueMilestone(9, [1]), 7);
-  assert.equal(dueMilestone(9, [1, 7]), null);
-  assert.equal(dueMilestone(15, [1]), 14);
+test('les jalons V1 ne sont plus planifiés (remplacés par voice-plan.js)', async () => {
+  const mod = await import('../js/core/progress.js');
+  for (const k of ['milestonesUpTo', 'nextMilestone', 'dueMilestone', 'referenceMilestones']) assert.equal(k in mod, false, k);
 });
 
 test('homeStatus', () => {
@@ -109,10 +95,4 @@ test('backupDue et whyCheckDue', () => {
   assert.equal(whyCheckDue(7, 0), true);
   assert.equal(whyCheckDue(10, 7), false);
   assert.equal(whyCheckDue(14, 7), true);
-});
-
-test('referenceMilestones', () => {
-  assert.deepEqual(referenceMilestones([
-    { kind: 'reference', milestone: 1 }, { kind: 'session', milestone: null }, { kind: 'reference', milestone: 7 },
-  ]), [1, 7]);
 });

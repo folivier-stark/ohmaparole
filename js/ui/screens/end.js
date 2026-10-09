@@ -1,6 +1,8 @@
 import { h } from '../dom.js';
 import { dayKey } from '../../core/dates.js';
-import { variant, plural, FIN, FIN_PARTIELLE, milestoneMessage } from '../../core/texts.js';
+import { variant, plural, FIN, FIN_PARTIELLE, voiceEndMessage } from '../../core/texts.js';
+import { dailyCount } from '../../core/progress.js';
+import { voiceJalonTag, calibrationRemaining, sessionsUntilControl, abPair } from '../../core/voice-plan.js';
 import {
   STAGES, sessionCounts, souvenirs, endCelebration, stablePick, pickLine, rememberLine, stageFor, humeurFor,
 } from '../../core/louarn.js';
@@ -24,7 +26,7 @@ async function louarnEnd({ repo, content, s, sessions, recs }) {
   ]);
   const c = endCelebration({
     ...counts, session: s, souvenirs: souvenirs(sessions, recs), fetes: fetes ?? [],
-    todayKey: dayKey(Date.now()), hour: new Date().getHours(), discret,
+    todayKey: dayKey(Date.now()), hour: new Date().getHours(), discret, jalon: voiceJalonTag(s, recs),
   });
   const lines = content.louarn?.repliques ?? [];
   const writes = [];
@@ -93,12 +95,16 @@ export async function render(root, { repo, content, navigate, params }) {
     children.push(h('button', { class: 'btn-secondary', onclick: async () => player.play(await repo.getAudio(take.id)) }, '▶ Réécouter ta prise du jour'));
   }
 
-  const ref = mine.find((r) => r.kind === 'reference');
-  if (s.milestone && ref) {
-    children.push(h('p', { class: 'milestone' }, milestoneMessage(s.milestone)));
-    const j1 = recs.find((r) => r.kind === 'reference' && r.milestone === 1);
-    if (s.milestone > 1 && j1) {
-      const cmp = await createCompare({ repo, a: j1, b: ref, labelA: 'J1', labelB: `Jalon ${s.milestone}` });
+  // Bloc « Mesure de ta voix » (spec V2 §4) : où en est la calibration, et l'A/B après un contrôle.
+  if (s.voiceCheck) {
+    const validTakes = mine.filter((r) => r.kind === 'reference' && r.voiceCheck).length;
+    children.push(h('p', { class: 'milestone' }, voiceEndMessage({
+      voiceCheck: s.voiceCheck, validTakes, calibrationRemaining: calibrationRemaining(recs),
+      untilControl: sessionsUntilControl(recs, dailyCount(sessions)),
+    })));
+    const pair = s.voiceCheck === 'controle' && validTakes >= 2 ? abPair(recs) : null;
+    if (pair) {
+      const cmp = await createCompare({ repo, a: pair.a, b: pair.b, labelA: pair.labelA, labelB: pair.labelB });
       if (cmp) { children.push(cmp.el); cleanups.push(cmp.destroy); }
     }
   }

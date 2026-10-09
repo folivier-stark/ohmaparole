@@ -54,6 +54,7 @@ const ASSETS = [
   "./js/ui/components/parcours.js",
   "./js/ui/components/rdv-card.js",
   "./js/ui/components/timer.js",
+  "./js/ui/components/voice-check.js",
   "./js/ui/screens/end.js",
   "./js/ui/screens/home.js",
   "./js/ui/screens/onboarding.js",

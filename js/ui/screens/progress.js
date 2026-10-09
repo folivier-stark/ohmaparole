@@ -1,6 +1,7 @@
 import { h } from '../dom.js';
 import { dayKey, longDateFr, MONTHS_FR } from '../../core/dates.js';
-import { monthCount, totalCount, dailyCount, monthGrid, milestonesUpTo, nextMilestone } from '../../core/progress.js';
+import { monthCount, totalCount, dailyCount, monthGrid } from '../../core/progress.js';
+import { voiceTimeline, abPair, calibrationRemaining, sessionsUntilControl, CALIBRATION_SESSIONS } from '../../core/voice-plan.js';
 import { programGoal, cumulativeSeries, goalProgress, axisSummary, rateTrend, monthlyBlocks, recentGoals, TREND_MIN_ANSWERS } from '../../core/dashboard.js';
 import { RDV_QUESTIONS, DONT_KNOW, rdvBoard } from '../../core/rdv.js';
 import { BLOCKS, plural, trendText, frequencyText } from '../../core/texts.js';
@@ -116,30 +117,34 @@ export async function render(root, { repo, content }) {
     Array.from({ length: grid.leading }, () => h('span')),
     grid.cells.map((c) => h('span', { class: `cal-cell ${c.kind}${c.today ? ' today' : ''}` }, String(c.day))));
 
-  // Ta voix (jalons + A/B)
-  const refs = recordings.filter((r) => r.kind === 'reference');
-  const j1 = refs.find((r) => r.milestone === 1);
-  const base = Math.max(daily, 1);
-  const upcoming = nextMilestone(base);
+  // Ta voix : les lectures du texte de référence (références V1, mesures de départ, contrôles) et l'A/B.
+  const timeline = voiceTimeline(recordings);
+  const remaining = calibrationRemaining(recordings);
+  const until = sessionsUntilControl(recordings, daily);
+  const controls = timeline.filter((o) => o.kind === 'controle').length;
+  const upcoming = remaining > 0 ? `Départ ${CALIBRATION_SESSIONS - remaining + 1}` : `Contrôle ${controls + 1}`;
+  let next;
+  if (remaining > 1) next = `Mesures de départ : encore ${remaining}, une par séance.`;
+  else if (remaining === 1) next = 'Dernière mesure de départ à ta prochaine séance.';
+  else next = until === 1 ? 'Prochain contrôle à ta prochaine séance.' : `Prochain contrôle dans ${plural(until, 'séance')}.`;
   const voice = h('div', { class: 'card' },
     h('h2', {}, 'Ta voix'),
     h('ol', { class: 'frise' },
-      milestonesUpTo(base).map((mm) => h('li', { class: refs.some((r) => r.milestone === mm) ? 'done' : '' }, `J${mm}`)),
-      h('li', { class: 'upcoming' }, `J${upcoming}`)),
-    h('p', { class: 'muted' }, `Prochain jalon dans ${plural(upcoming - daily, 'séance')}.`));
-  const lastRef = refs.filter((r) => r.milestone > 1).at(-1);
-  if (j1 && lastRef) {
+      timeline.map((o) => h('li', { class: 'done' }, o.label)),
+      h('li', { class: 'upcoming' }, upcoming)),
+    h('p', { class: 'muted' }, next));
+  // A/B à l'aveugle : le premier enregistrement de référence contre le plus récent (V1, départ ou contrôle).
+  const pair = abPair(recordings);
+  if (pair) {
     const btn = h('button', {
       class: 'btn-secondary',
       onclick: async () => {
         btn.remove();
-        const cmp = await createCompare({ repo, a: j1, b: lastRef, labelA: 'J1', labelB: `J${lastRef.milestone}` });
+        const cmp = await createCompare({ repo, a: pair.a, b: pair.b, labelA: pair.labelA, labelB: pair.labelB });
         if (cmp) { voice.append(cmp.el); cleanups.push(cmp.destroy); }
       },
-    }, `Comparer J1 et J${lastRef.milestone}`);
+    }, `Comparer ${pair.labelA} et ${pair.labelB}`);
     voice.append(btn);
-  } else if (!j1) {
-    voice.append(h('p', { class: 'muted' }, 'Ta voix de départ sera enregistrée à ta prochaine séance.'));
   }
 
   root.replaceChildren(h('div', { class: 'progress' },

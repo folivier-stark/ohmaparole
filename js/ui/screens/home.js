@@ -1,9 +1,7 @@
 import { h } from '../dom.js';
 import { dayKey, diffDays } from '../../core/dates.js';
-import {
-  homeStatus, monthCount, dailyCount, totalCount, dueMilestone, referenceMilestones,
-  backupDue, whyCheckDue, lastBloc3,
-} from '../../core/progress.js';
+import { homeStatus, monthCount, dailyCount, totalCount, backupDue, whyCheckDue, lastBloc3 } from '../../core/progress.js';
+import { voiceCheckDue } from '../../core/voice-plan.js';
 import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv, RDV_EXIT_WINDOW_MS } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
@@ -19,7 +17,7 @@ async function louarnLine({ repo, content, sessions, card, status, due, why, see
   const daily = dailyCount(sessions);
   const stage = stageFor(daily).id;
   const plain = () => h('div', { class: 'lo-bulle-wrap' }, createFox({ stage, size: 96 }),
-    h('p', { class: 'context' }, homeLine({ ...status, dueMilestone: due, why, motivations: content.motivations, seed })));
+    h('p', { class: 'context' }, homeLine({ ...status, voiceDue: due, why, motivations: content.motivations, seed })));
   const silent = () => createBulle({ texte: null, stage });
   try {
     const [discret, vus, jour, shownOn] = await Promise.all([
@@ -27,7 +25,7 @@ async function louarnLine({ repo, content, sessions, card, status, due, why, see
       repo.getMeta('louarn.jour', {}), repo.getMeta('louarn.stade6Jour', null),
     ]);
     const b = homeBubble({
-      cardShown: Boolean(card), discret, status, dueMilestone: due, dailyCount: daily, why, seed,
+      cardShown: Boolean(card), discret, status, voiceDue: due, dailyCount: daily, why, seed,
       hour: new Date(now).getHours(), bloc3: nextBloc3(lastBloc3(sessions)),
       stade6Plus: stade6PlusToday({ dailyCount: daily, shownOn, todayKey: today }),
     });
@@ -80,7 +78,8 @@ export async function render(root, { repo, content, navigate }) {
     repo.getMeta('lastBackupAt', null), repo.getMeta('lastWhyCheck', 0),
   ]);
   const status = homeStatus(sessions, today);
-  const due = dueMilestone(dailyCount(sessions) + 1, referenceMilestones(recordings));
+  // Mesure de la voix due à la prochaine séance (calibration ou contrôle), à la place des jalons V1.
+  const due = voiceCheckDue(recordings, dailyCount(sessions), { todayKey: today });
   const total = totalCount(sessions);
   const seed = diffDays('2026-01-01', today);
 
@@ -113,7 +112,7 @@ export async function render(root, { repo, content, navigate }) {
       exit ? exitButton(exit, { repo, navigate }) : null,
       h('a', { class: status.doneToday ? 'btn btn-calm' : 'btn btn-go', href: '#/session/daily' },
         h('span', {}, goLabel(status)),
-        h('small', {}, goSubtitle({ comeback: status.comeback, dueMilestone: due, bloc3: nextBloc3(lastBloc3(sessions)) }))),
+        h('small', {}, goSubtitle({ comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)) }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));
   return () => rdvCard?.destroy();
 }
