@@ -1,4 +1,4 @@
-# Parole : spec V1
+# OhMaParole : spec V1
 
 > Appli perso d'entraînement quotidien à la diction, à l'écoute et à la présence, sur Android.
 > Date : 09/10/2026. Sources détaillées, qui font foi pour le contenu exact :
@@ -114,7 +114,7 @@ C'est le texte de `expert-contenu.md` §4.1 : présentation pro, puis « Les cha
 
 Une page web **ne peut pas** déclencher de rappel fiable sans serveur (`expert-tech.md` §8).
 
-- **Solution choisie :** un **événement récurrent Google Agenda**, chaque jour à l'heure choisie. Titre : `Parole 5 min, pour : [pourquoi, coupé à 40 caractères]`. Description : lien vers l'appli avec `?go`. Claude peut le créer via le connecteur Google Agenda, **avec l'accord de Fred**.
+- **Solution choisie :** un **événement récurrent Google Agenda**, chaque jour à l'heure choisie. Titre : `OhMaParole 5 min, pour : [pourquoi, coupé à 40 caractères]`. Description : lien vers l'appli avec `?go`. Claude peut le créer via le connecteur Google Agenda, **avec l'accord de Fred**.
 - **Solution de secours :** une alarme Android posée à la main, avec ce libellé copié depuis l'écran O4.
 - Le manifest déclare **2 raccourcis d'icône** : un appui long donne « Go » ou « Avant un RDV ».
 - ⚠️ **Premier test sur le téléphone :** le lien de l'Agenda doit ouvrir l'appli installée, et pas un onglet Chrome. Si ce n'est pas le cas, l'Agenda ne sert que de rappel et Fred tape sur l'icône.
@@ -125,15 +125,15 @@ Une page web **ne peut pas** déclencher de rappel fiable sans serveur (`expert-
 |---|---|
 | Code | **JavaScript natif en modules ES, sans build et sans dépendance à l'exécution.** Node ne sert qu'aux tests (`node --test`), au serveur local et au déploiement. |
 | Structure | `js/core/` est **pur** : moteur de séance, planificateur, progression, dates. Il est testé sous Node. Le reste est rangé dans `js/data/` (IndexedDB, contenu, sauvegarde), `js/audio/` (enregistreur, lecteur), `js/platform/` (maintien de l'écran allumé, stockage, rappel) et `js/ui/screens/*`. |
-| Données | Base IndexedDB `diction` avec 5 stores : `meta`, `sessions`, `recordings`, `audio` (Blobs), `goals`. La progression est **calculée, jamais stockée**. Les jours sont des clés en **heure locale**. |
+| Données | Base IndexedDB `ohmaparole` avec 4 stores : `meta`, `sessions`, `recordings`, `audio` (Blobs). L’objectif RDV et le retour terrain sont portés par la séance `prerdv`. La progression est **calculée, jamais stockée**. Les jours sont des clés en **heure locale**. |
 | Contenu | `content/program.json` ne dépend d'aucune langue. `content/fr/exercises.json` reprend l'intégralité de la bibliothèque de `expert-contenu.md` §3, ids préfixés `fr.`. La V2 en anglais ou espagnol consiste à ajouter `content/en/` ou `content/es/`. |
 | Audio | `audio/webm;codecs=opus`, 32 kb/s, **contrôle automatique de gain désactivé**, micro coupé après chaque prise, **écran maintenu allumé** pendant la séance. |
 | Voix de guidage | `speechSynthesis` en fr-FR, pour les consignes et les passages d'écoute. Elle peut se couper. |
-| Hors ligne | Service worker qui sert tout depuis le cache, avec un précache versionné. Les **polices sont stockées dans le projet** (Lexend et Atkinson Hyperlegible, licence OFL). Une mise à jour ne s'applique jamais pendant une séance. |
+| Hors ligne | Service worker qui sert tout depuis le cache, avec un précache versionné. Les polices Google Fonts (Lexend, Atkinson Hyperlegible) sont **mises en cache par le SW** au premier lancement. Une mise à jour ne s'applique jamais pendant une séance. |
 | Stockage | `navigator.storage.persist()` est appelé après la première séance, puis à chaque démarrage. Son état est visible dans les Réglages. |
 | Sauvegarde | Export d'**un fichier JSON** (audio en base64), import par fusion. Une ligne apparaît sur l'accueil si la dernière sauvegarde date de plus de 14 jours. |
 | Visuel | Palette sable / granite / Iroise / ajonc, avec mode sombre (`expert-ux.md` §6). Gros boutons de 80 dp dans le tiers bas de l'écran, cibles de 56 dp minimum. |
-| Hébergement | **GitHub Pages** sur le compte `folivier-stark`, dépôt **public** (le code et les textes d'exercices sont visibles, **aucune donnée perso**). `npm run deploy` lance les tests, met la version à jour, puis fait le push. |
+| Hébergement | **GitHub Pages** sur le compte `folivier-stark`, dépôt public **`ohmaparole`** → `https://folivier-stark.github.io/ohmaparole/` (le code et les textes d'exercices sont visibles, **aucune donnée perso**). `npm run deploy` lance les tests, met la version à jour, puis fait le push. |
 | Tests | `node --test` sur le moteur de séance, la rotation, la règle des 60 s, les jalons, les dates (y compris entre 00h et 02h), la validité du contenu et l'exhaustivité du précache. Plus une checklist manuelle de 8 points sur Android (`expert-tech.md` §9). |
 
 ## 9. Arbitrages entre experts
