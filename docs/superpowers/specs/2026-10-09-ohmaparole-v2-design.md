@@ -76,16 +76,17 @@
 
 ## 5. Retour après RDV, version résultats (R §1.3, §5)
 
-- Après « Avant un RDV », un bouton **« Je sors du RDV »** apparaît sur l'accueil pendant 4 h. Il mesure la durée réelle (R).
-- Ensuite, **une carte, une question à la fois, 5 au maximum, environ 15 s** :
-  1. « Objectif atteint ? », si un objectif a été saisi ;
-  2. « La suite ? » : signé ou date fixée / non clair / flou ;
-  3. « Budget abordé ? » : par qui et quand, en tranches (R) ;
-  4. « Fini à l'heure ? » : sautée si la durée a été mesurée par le bouton ;
-  5. « On t'a fait répéter ? ».
+- Après « Avant un RDV », un bouton **« Je sors du RDV »** apparaît sur l'accueil pendant 4 h. Il mesure la durée réelle (R). **Pendant ces 4 h, seul le bouton s'affiche.**
+- La carte de questions arrive **dès le tap** sur le bouton, sinon **une fois les 4 h passées**, et reste proposée 3 jours au plus. **Une question à la fois, 5 au maximum filtre compris, environ 15 s** :
+  1. **Filtre** (R §1.3, premier écran) : « C'était un premier RDV avec un prospect ? » Oui / Non (suivi d'un client, réseau, etc.) / Passer. Pas de « Je ne sais pas » ici.
+  2. « Objectif atteint ? », si un objectif a été saisi ;
+  3. « La suite ? » : signé ou date fixée / non clair / flou ;
+  4. « Le budget ? » : par qui et quand, en tranches (R) ;
+  5. « On t'a fait répéter ? » ;
+  6. **en dernier**, « Fini à l'heure prévue ? », remplacée par « La durée annoncée ? » (30 / 45 / 60 / 90 min) quand le bouton a mesuré la durée, avec 5 min de tolérance avant « Jusqu'à 10 min de plus ». Cette question **saute** si l'on dépasserait 5 questions (filtre + objectif + suite + budget + répéter).
 
-  Il y a toujours « Je ne sais pas » et « Passer ». Les questions sont mot pour mot celles de R §1.3.
-- La carte RDV de Progression applique les règles d'affichage de R §5.2 : « x sur y », le mois 1 à côté des 4 dernières semaines, et la source sur chaque ligne.
+  Si le filtre répond **Non** (réseau, BNI, suivi client), seuls « Objectif atteint ? » et « On t'a fait répéter ? » sont posés, et ce RDV n'entre pas dans les taux de la suite, du budget et de la durée. Sauf au filtre, il y a toujours « Je ne sais pas » et « Passer ». Les questions sont mot pour mot celles de R §1.3.
+- La carte RDV de Progression applique les règles d'affichage de R §5.2 : « x sur y », le mois 1 (28 jours consécutifs à partir du lundi de la première semaine avec réponses) à côté des 4 dernières semaines, et la source sur chaque ligne. « Je ne sais pas » compte dans le total sans compter en réussite, **sauf pour « On t'a fait répéter ? »**, où il reste hors du total (l'historique V1 n'avait pas cette option).
 - **Interdit :** enregistrer un vrai RDV (R §4.5). L'appli le rappelle une fois.
 
 ## 6. Posture au micro, point de la semaine, réplique éclair (P §6 mesure 1, M §3.2, R §3.3)

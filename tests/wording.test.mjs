@@ -34,4 +34,6 @@ test('plus aucun « en hausse » à l’écran Progression', () => {
 test('le rappel « jamais de vrai RDV enregistré » cite la règle (eval-rdv.md §4.5)', () => {
   assert.match(RDV_NO_RECORD, /vrai rendez-vous/);
   assert.match(RDV_NO_RECORD, /226-1/);
+  // L'appli garde l'heure de sortie ET les réponses : le rappel ne doit pas dire le contraire.
+  assert.match(RDV_NO_RECORD, /Du rendez-vous, l’appli ne garde que l’heure de ta sortie et tes réponses./);
 });

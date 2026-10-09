@@ -38,7 +38,7 @@ export const TREND_TEXT = {
 };
 
 /** Rappelé une fois, à la fin de la première routine « Avant un RDV » (eval-rdv.md §4.5). */
-export const RDV_NO_RECORD = 'N’enregistre jamais un vrai rendez-vous : sans l’accord de la personne, c’est un délit (article 226-1 du Code pénal). L’appli, elle, ne garde que l’heure de ta sortie.';
+export const RDV_NO_RECORD = 'N’enregistre jamais un vrai rendez-vous : sans l’accord de la personne, c’est un délit (article 226-1 du Code pénal). Du rendez-vous, l’appli ne garde que l’heure de ta sortie et tes réponses.';
 
 /**
  * missing : réponses qui manquent avant de sortir du calibrage. « On apprend ta voix » est réservé

@@ -4,7 +4,7 @@ import {
   homeStatus, monthCount, dailyCount, totalCount, dueMilestone, referenceMilestones,
   backupDue, whyCheckDue, lastBloc3,
 } from '../../core/progress.js';
-import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv } from '../../core/rdv.js';
+import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv, RDV_EXIT_WINDOW_MS } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
 import { createRdvCard } from '../components/rdv-card.js';
@@ -17,14 +17,18 @@ function exitButton(exit, { repo, navigate }) {
       btn.disabled = true;
       try {
         // Version stockée : la carte a pu commencer le retour entre-temps, la durée devient alors déclarée.
+        // Écran resté ouvert au-delà des 4 h : le tap est ignoré, l'accueil se redessine avec la carte.
         const fresh = (await repo.getSession(exit.id)) ?? exit;
-        if (fresh.rdvEndedAt == null && !rdvStarted(fresh)) await repo.saveSession(exitRdv(fresh, Date.now()));
+        const now = Date.now();
+        if (fresh.rdvEndedAt == null && !rdvStarted(fresh) && now - fresh.endedAt < RDV_EXIT_WINDOW_MS) {
+          await repo.saveSession(exitRdv(fresh, now));
+        }
       } catch (e) {
         console.error(e);
       }
       navigate('/home');
     },
-  }, h('span', {}, 'Je sors du RDV'), h('small', {}, `${rdvQuestionIds(exit).length} questions, environ 15 secondes`));
+  }, h('span', {}, 'Je sors du RDV'), h('small', {}, `${rdvQuestionIds(exit).length} questions au plus, environ 15 secondes`));
   return btn;
 }
 
