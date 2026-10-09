@@ -43,8 +43,8 @@ const visibleBlocks = (blocks) => (blocks.length <= 6 ? blocks : [blocks[0], ...
  * blocks : monthlyBlocks(). La description lue par le lecteur d'écran reprend « environ X sur 10 ».
  */
 export function monthlyPoints(blocks) {
-  const H = 150;
-  const pad = { ...PAD, b: 34 };
+  const H = 160;
+  const pad = { ...PAD, t: 26, b: 34 };
   const shown = visibleBlocks(blocks);
   const bw = (W - pad.l - pad.r) / Math.max(shown.length, 1);
   const y = (v) => H - pad.b - (v / 10) * (H - pad.t - pad.b);
@@ -59,7 +59,7 @@ export function monthlyPoints(blocks) {
     viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img',
     'aria-label': shown.map((b) => `${b.label} : ${frequencyText(b.freq)}`).join(' ; '),
   },
-  svg('text', { x: pad.l - 6, y: pad.t - 4, 'text-anchor': 'end', class: 'chart-label' }, 'sur 10'),
+  svg('text', { x: pad.l - 6, y: 11, 'text-anchor': 'end', class: 'chart-label' }, 'sur 10'),
   [0, 5, 10].map((v) => [
     svg('line', { x1: pad.l, x2: W - pad.r, y1: y(v), y2: y(v), class: 'chart-axis' }),
     svg('text', { x: pad.l - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'chart-label' }, String(v)),
