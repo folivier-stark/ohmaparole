@@ -32,3 +32,19 @@ export async function listRecordings() {
 export async function getAudio(id) {
   return (await db.get('audio', id))?.blob ?? null;
 }
+
+/** Mesures de la voix (store `measures`, une ligne par valeur : js/core/voice-report.js measureRows). */
+export async function saveMeasures(rows) {
+  if (rows?.length) await db.putMany('measures', rows);
+}
+
+export async function listMeasures() {
+  return (await db.getAll('measures')).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+}
+
+/** Supprime toutes les mesures d'une version de l'algorithme (après leur réanalyse). Renvoie leur nombre. */
+export async function deleteMeasuresByAlgo(algoVersion) {
+  const ids = (await db.getAll('measures')).filter((m) => m.algoVersion === algoVersion).map((m) => m.id);
+  if (ids.length) await db.deleteMany('measures', ids);
+  return ids.length;
+}
