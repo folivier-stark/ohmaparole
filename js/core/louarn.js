@@ -282,6 +282,53 @@ export function rdvBubble({ goal = '', discret = false } = {}) {
   return { moment: 'rdv', context: [String(goal ?? '').trim() ? 'objectif' : 'sansObjectif'] };
 }
 
+/**
+ * Tout ce que fête l'écran de fin d'une séance comptée (G §2.2, §4.4, maquettes §5.3 et §5.4).
+ * souvenirs : louarn.souvenirs() (obtenus) ; fetes : meta louarn.fetes (ids et 'stade:n' déjà fêtés).
+ * Renvoie :
+ *   stage      { from, to } (ids) : montée de stade à fêter, jamais un stade déjà fêté ; sinon null ;
+ *   next       nextStage(newCount) quand stage (ligne « Prochain : … »), sinon null ;
+ *   bubble     { moment, context } de la bulle (endBubble). Stade déjà fêté : la priorité 1 saute, on passe
+ *              au souvenir, puis au thème, puis au jalon et à la fin ;
+ *   secondary  arbitrage du contrôleur : aux fins de bloc (24, 48, 72), la réplique du nouveau bloc
+ *              ou des langues (th-07, th-13, th-19) s'affiche sous la bulle de stade, sans être perdue ;
+ *   theme      thème terminé (themeCompleted), sinon null ;
+ *   miniSentier le mini-sentier de fin de thème, sauf à une montée de stade, qui se fête seule (§5.4) ;
+ *   celebrate  souvenirs à fêter en pastille ; fetes : la liste à enregistrer (souvenirs, puis 'stade:n').
+ */
+export function endCelebration({
+  prevCount, newCount, session = {}, souvenirs: list = [], fetes = [], todayKey, encoreUne = false, hour,
+  discret = false, sessionsPerWeek = SESSIONS_PER_THEME,
+} = {}) {
+  const done = fetes ?? [];
+  const up = stageUp(prevCount, newCount);
+  const stage = up && !done.includes(`stade:${up.id}`) ? up : null;
+  const kept = souvenirsToCelebrate(list ?? [], done, todayKey);
+  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek };
+  const tag = themeTag(prevCount, newCount, sessionsPerWeek);
+  let bubble;
+  if (!up || stage) bubble = endBubble({ prevCount, newCount, ...rest });
+  else if (!kept.celebrate.length && tag) bubble = { moment: 'theme', context: [tag] };
+  else bubble = endBubble({ prevCount: newCount, newCount, ...rest }); // sans stade ni thème : souvenir, jalon ou fin
+  const blockEnd = blockCompleted(prevCount, newCount, sessionsPerWeek) != null;
+  const theme = themeCompleted(prevCount, newCount, sessionsPerWeek);
+  return {
+    stage: stage ? { from: stageFor(prevCount).id, to: stage.id } : null,
+    next: stage ? nextStage(newCount) : null,
+    bubble,
+    secondary: bubble?.moment === 'stade' && blockEnd && tag ? { moment: 'theme', context: [tag] } : null,
+    theme,
+    miniSentier: theme != null && !stage,
+    celebrate: kept.celebrate,
+    fetes: stage ? [...kept.fetes, `stade:${stage.id}`] : kept.fetes,
+  };
+}
+
+/** Condition 'stade:6+' de l'accueil (G §2.3) : à partir de 72 séances, le seul jour de la première ouverture. */
+export function stade6PlusToday({ dailyCount = 0, shownOn = null, todayKey } = {}) {
+  return norm(dailyCount) >= STAGES.at(-1).seuil && (shownOn == null || shownOn === todayKey);
+}
+
 /** Cumul avant et après une séance, et « encore une » (2e séance comptée du jour) pour l'écran de fin. */
 export function sessionCounts(sessions, session) {
   const before = (sessions ?? []).filter((s) => isDailyCounted(s) && s.id !== session.id && s.startedAt < session.startedAt);
@@ -309,6 +356,8 @@ export function souvenirs(sessions = [], recordings = []) {
   const found = {
     'premier-pas': daily[0],
     'voix-depart': ref(1),
+    // TODO(phase 3) : « Le premier écho » et « Le grand écho », comme les répliques jal-*, restent liés aux
+    // références J7 et J30 de la V1. La phase 3 les reliera aux contrôles de voix (spec V2 §4).
     'premier-echo': ref(7),
     'grand-echo': ref(30),
     'premier-rdv': prerdv.find((s) => (s.practicedSec ?? 0) >= 30),
