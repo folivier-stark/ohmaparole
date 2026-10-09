@@ -4,9 +4,9 @@ export const WEEKS_PER_CYCLE = 6;
 export const SESSIONS_PER_WEEK = 5;
 
 /** Le programme avance au NOMBRE de séances, jamais au calendrier. n est 1-based. */
-export function programPosition(n) {
+export function programPosition(n, weeksPerCycle = WEEKS_PER_CYCLE) {
   const i = Math.max(0, n - 1);
-  const perCycle = WEEKS_PER_CYCLE * SESSIONS_PER_WEEK;
+  const perCycle = weeksPerCycle * SESSIONS_PER_WEEK;
   return { cycle: Math.floor(i / perCycle) + 1, week: Math.floor((i % perCycle) / SESSIONS_PER_WEEK) + 1 };
 }
 
@@ -59,9 +59,10 @@ function ecouteSteps(it) {
 }
 
 export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, lastBloc3 = null, dueMilestone = null, comeback = false }) {
-  const { cycle, week } = programPosition(sessionNumber);
+  const weeksPerCycle = content.program.weeks.length;
+  const { cycle, week } = programPosition(sessionNumber, weeksPerCycle);
   const seed = `${dateKey}#${sessionNumber}`;
-  const maxWeek = cycle > 1 ? WEEKS_PER_CYCLE : week;
+  const maxWeek = cycle > 1 ? weeksPerCycle : week;
   const warm = ofBloc(content, 'echauffement').filter((e) => e.semaineMin <= maxWeek);
   const voix = pickLeastRecent(warm.filter((e) => e.type === 'voix'), history, `${seed}:voix`);
   const moteur = pickLeastRecent(warm.filter((e) => e.type === 'moteur'), history, `${seed}:moteur`);

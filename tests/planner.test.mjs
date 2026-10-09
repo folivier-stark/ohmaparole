@@ -13,6 +13,9 @@ test('programPosition avance par blocs de 5 séances', () => {
   assert.deepEqual(programPosition(6), { cycle: 1, week: 2 });
   assert.deepEqual(programPosition(30), { cycle: 1, week: 6 });
   assert.deepEqual(programPosition(31), { cycle: 2, week: 1 });
+  assert.deepEqual(programPosition(31, 12), { cycle: 1, week: 7 });
+  assert.deepEqual(programPosition(60, 12), { cycle: 1, week: 12 });
+  assert.deepEqual(programPosition(61, 12), { cycle: 2, week: 1 });
 });
 
 test('nextBloc3 alterne', () => {
@@ -102,4 +105,20 @@ test('avant RDV : 90 s, consigne différente de la précédente', () => {
   assert.equal(total(p), 90);
   assert.notEqual(p.consigneId, 'fr.C01');
   assert.deepEqual(p.steps.map((s) => s.kind), ['objective', 'breathe', 'consigne']);
+});
+
+test('programme de 12 semaines : la séance 31 tire dans les Situations de RDV (semaine 7)', () => {
+  assert.equal(content.program.weeks.length, 12);
+  const p = buildDailyPlan({ content, sessionNumber: 31, dateKey: '2026-12-01' });
+  assert.equal(p.week, 7);
+  assert.equal(p.cycle, 1);
+  const ids = content.program.weeks[6].articulation.map((id) => `fr.${id}`);
+  assert.ok(ids.includes(artId(p)));
+  assert.equal(total(p), 300);
+});
+
+test('séance 61 : nouveau cycle, retour en semaine 1', () => {
+  const p = buildDailyPlan({ content, sessionNumber: 61, dateKey: '2027-02-01' });
+  assert.equal(p.cycle, 2);
+  assert.equal(p.week, 1);
 });

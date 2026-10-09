@@ -7,9 +7,9 @@ const by = (b) => c.items.filter((i) => i.bloc === b);
 
 test('volumes attendus', () => {
   assert.equal(by('echauffement').length, 12);
-  assert.equal(by('articulation').length, 28);
-  assert.equal(by('ecoute').length, 12);
-  assert.equal(by('posture').length, 12);
+  assert.equal(by('articulation').length, 52);
+  assert.equal(by('ecoute').length, 24);
+  assert.equal(by('posture').length, 24);
   assert.equal(by('avant-rdv').length, 1);
   assert.equal(c.consignes.length, 10);
 });
