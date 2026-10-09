@@ -163,3 +163,6 @@ textarea.field { min-height: 96px; resize: vertical; }
 .voice-measure p { margin: 6px 0; }
 .voice-hush { font: 600 24px var(--font-title); text-align: center; margin: 32px 0; }
 .voice-refus { font-weight: 700; }
+.posture-mic { margin: 12px 0; }
+.eclair-labels { padding-left: 20px; margin: 8px 0; }
+.rating-q { font-weight: 700; margin: 16px 0 8px; }

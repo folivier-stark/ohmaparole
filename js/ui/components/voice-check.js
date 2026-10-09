@@ -37,7 +37,7 @@ export function createVoiceCheck({ step, saveTake, onDone }) {
   let token = 0; // invalide les minuteries d'une prise abandonnée
   let pending = Promise.resolve();
 
-  const show = (...nodes) => { if (!destroyed) el.replaceChildren(...nodes.filter((n) => n != null)); };
+  const show = (...nodes) => { if (!destroyed) el.replaceChildren(...nodes.flat(Infinity).filter((n) => n != null)); };
   const takeLabel = () => `Prise ${take} sur ${total}`;
   const btn = (label, onclick, cls = 'btn btn-go') => h('button', { class: cls, onclick }, label);
 

@@ -7,11 +7,16 @@ import {
 } from '../../core/session-engine.js';
 import { homeStatus, dailyCount, historyIds, lastBloc3, lastConsigneId } from '../../core/progress.js';
 import { voiceCheckDue } from '../../core/voice-plan.js';
+import { weeklyPointDue, pickPointItem, spontaneRows } from '../../core/weekly-point.js';
+import { postureMicConfig, latestCalibration } from '../../core/live-silence.js';
 import { BLOCKS, PAS_COMPTE, RDV_NO_RECORD } from '../../core/texts.js';
 import { rdvBubble, stablePick, humeurFor } from '../../core/louarn.js';
 import { createTimer } from '../components/timer.js';
 import { createBulle } from '../components/fox.js';
 import { createVoiceCheck } from '../components/voice-check.js';
+import { createPostureMic } from '../components/posture-mic.js';
+import { createPointSpontane } from '../components/point-spontane.js';
+import { createPointEclair } from '../components/point-eclair.js';
 import { takeRows } from '../../audio/voice-measure.js';
 import { startRecording } from '../../audio/recorder.js';
 import { createPlayer } from '../../audio/player.js';
@@ -32,17 +37,27 @@ export async function render(root, { repo, content, navigate, params }) {
   const kind = params[0] === 'prerdv' ? 'prerdv' : 'daily';
   const t0 = Date.now();
   const today = dayKey(t0);
-  const [sessions, recordings, why] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.getMeta('why', '')]);
+  const [sessions, recordings, why, measures] = await Promise.all([
+    repo.listSessions(), repo.listRecordings(), repo.getMeta('why', ''), repo.listMeasures(),
+  ]);
+  // Seuil des mesures en direct (posture, réplique éclair) : niveaux de la dernière prise de voix valide.
+  const calibration = latestCalibration(measures);
 
   let plan;
   if (kind === 'prerdv') {
     plan = buildRdvPlan({ content, dateKey: today, lastConsigneId: lastConsigneId(sessions) });
   } else {
     const done = dailyCount(sessions);
+    const n = done + 1;
+    // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
+    const voiceCheck = voiceCheckDue(recordings, done, { todayKey: today });
+    const comeback = homeStatus(sessions, today).comeback;
+    // Point de la semaine (spec V2 §6) : jamais avec une mesure de voix, il est alors reporté.
+    const due = weeklyPointDue({ sessionNumber: n, sessions, voiceCheck, comeback });
+    const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions, sessionNumber: n, dateKey: today }) : null;
     plan = buildDailyPlan({
-      content, history: historyIds(sessions), sessionNumber: done + 1, dateKey: today, lastBloc3: lastBloc3(sessions),
-      // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
-      voiceCheck: voiceCheckDue(recordings, done, { todayKey: today }), comeback: homeStatus(sessions, today).comeback,
+      content, history: historyIds(sessions), sessionNumber: n, dateKey: today, lastBloc3: lastBloc3(sessions),
+      voiceCheck, comeback, weeklyPoint: due && item ? { ...due, item } : null,
     });
   }
 
@@ -51,6 +66,7 @@ export async function render(root, { repo, content, navigate, params }) {
     practicedSec: 0, counted: false, completed: false,
     sessionNumber: plan.sessionNumber ?? null, cycle: plan.cycle ?? null, programWeek: plan.week ?? null,
     bloc3: plan.bloc3 ?? null, milestone: null, voiceCheck: plan.voiceCheck ?? null, voiceTakes: 0, itemIds: plan.itemIds,
+    weeklyPoint: plan.weeklyPoint ? { ...plan.weeklyPoint, ready: null, criteres: null } : null,
     consigneId: plan.consigneId ?? null, ratings: {}, recordingIds: [], goal: '', feedback: null,
   };
 
@@ -65,8 +81,9 @@ export async function render(root, { repo, content, navigate, params }) {
   let lastTake = Promise.resolve(null);
   let goalInput = null;
   let lateRating = null;
-  let voiceCtl = null;
-  let voiceSettled = () => Promise.resolve();
+  // Contrôleur du pas interactif en cours (bloc voix, point de la semaine, micro de la posture).
+  let blockCtl = null;
+  const settles = [];
 
   const player = createPlayer();
   const timer = createTimer();
@@ -134,6 +151,21 @@ export async function render(root, { repo, content, navigate, params }) {
     await save();
   }
 
+  /** Une prise du point de la semaine (spontanée ou réplique éclair), gardée pour la réécoute. */
+  async function savePointTake(kindOf, { blob, mimeType, durationMs }) {
+    const meta = {
+      id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: kindOf, milestone: null,
+      sessionNumber: plan.sessionNumber, itemId: plan.weeklyPoint?.itemId ?? null, sessionId: record.id,
+      mimeType, durationMs, sizeBytes: blob.size,
+    };
+    await repo.saveRecording(meta, blob);
+    record.recordingIds.push(meta.id);
+    await save();
+    return meta;
+  }
+
+  const ctlBase = (c) => { blockCtl = c; settles.push(c.settled); add(c.el); };
+
   function renderHeader(st) {
     const b = BLOCKS[st.block];
     const idx = blocks.indexOf(st.block);
@@ -166,6 +198,14 @@ export async function render(root, { repo, content, navigate, params }) {
             advance();
           });
           lateRating.hidden = true;
+          // Exercice à silence cible : mesure facultative au micro, rien n'est enregistré (spec V2 §6).
+          const cfg = st.kind === 'guide' ? postureMicConfig(st.itemId) : null;
+          if (cfg) {
+            ctlBase(createPostureMic({
+              item: content.byId.get(st.itemId), config: cfg, calibration, record,
+              saveRows: (rows) => repo.saveMeasures(rows),
+            }));
+          }
           add(lateRating);
         }
         speak(st.speak);
@@ -176,9 +216,29 @@ export async function render(root, { repo, content, navigate, params }) {
         break;
       case 'voice':
         stopSpeaking();
-        voiceCtl = createVoiceCheck({ step: st, saveTake: saveVoiceTake, onDone: advance });
-        voiceSettled = voiceCtl.settled;
-        add(voiceCtl.el);
+        ctlBase(createVoiceCheck({ step: st, saveTake: saveVoiceTake, onDone: advance }));
+        break;
+      case 'spontane':
+        stopSpeaking();
+        ctlBase(createPointSpontane({
+          step: st,
+          saveTake: async (take) => {
+            const meta = await savePointTake('spontane', take);
+            await repo.saveMeasures(spontaneRows(meta, take.res));
+          },
+          onReady: (v) => { record.weeklyPoint.ready = v; save(); },
+          onDone: advance,
+        }));
+        break;
+      case 'eclair':
+        stopSpeaking();
+        ctlBase(createPointEclair({
+          step: st, calibration, record,
+          saveTake: (take) => savePointTake('eclair', take),
+          saveRows: (rows) => repo.saveMeasures(rows),
+          onCriteres: (c) => { record.weeklyPoint.criteres = c; save(); },
+          onDone: advance,
+        }));
         break;
       case 'record':
         stopSpeaking();
@@ -254,7 +314,7 @@ export async function render(root, { repo, content, navigate, params }) {
     stopSpeaking();
     player.stop();
     if (st.kind === 'record') endTake();
-    if (st.kind === 'voice' && voiceCtl) { voiceCtl.destroy(); voiceCtl = null; }
+    if (blockCtl) { blockCtl.destroy(); blockCtl = null; }
     if (st.kind === 'objective' && goalInput) record.goal = goalInput.value.trim();
   }
 
@@ -303,7 +363,7 @@ export async function render(root, { repo, content, navigate, params }) {
     releaseAwake();
     // Une prise ou une sauvegarde ratée ne doit jamais bloquer l'écran de fin.
     try { await lastTake; } catch (e) { console.error(e); }
-    try { await voiceSettled(); } catch (e) { console.error(e); }
+    try { await Promise.all(settles.map((f) => f())); } catch (e) { console.error(e); }
     record.completed = !stoppedEarly;
     try { await save(); } catch (e) { console.error(e); }
     buzz('end');
@@ -351,7 +411,7 @@ export async function render(root, { repo, content, navigate, params }) {
   function onPaused() {
     const st = currentStep(run);
     if (st?.kind === 'record') endTake({ partial: true });
-    if (st?.kind === 'voice') voiceCtl?.pause();
+    blockCtl?.pause?.();
     stopSpeaking();
     player.stop();
   }
@@ -368,8 +428,8 @@ export async function render(root, { repo, content, navigate, params }) {
       run = restartStep(run, now);
       enterStep(st);
     }
-    // Bloc voix : la prise interrompue repart à zéro, les prises déjà faites restent.
-    if (st?.kind === 'voice') voiceCtl?.resume();
+    // Bloc voix, point de la semaine : la prise interrompue repart à zéro, les prises déjà faites restent.
+    blockCtl?.resume?.();
   }
 
   function stopNow() {
@@ -444,12 +504,12 @@ export async function render(root, { repo, content, navigate, params }) {
     stopSpeaking();
     player.stop();
     releaseAwake();
-    voiceCtl?.destroy();
+    blockCtl?.destroy();
     if (run && !finished) {
       finished = true;
       if (takeStarting) endTake();
       stoppedEarly = true;
-      Promise.all([lastTake, voiceSettled()]).then(() => save());
+      Promise.all([lastTake, ...settles.map((f) => f())]).then(() => save());
     }
   };
 }

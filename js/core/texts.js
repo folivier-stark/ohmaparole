@@ -8,6 +8,7 @@ export const BLOCKS = {
   posture: { label: 'Posture', tagline: 'Posé avant de parler, tu parles mieux.' },
   voix: { label: 'Ta voix', tagline: 'Même texte, pour mesurer le chemin parcouru.' },
   rdv: { label: 'Avant un RDV', tagline: 'Tu y vas dans 90 secondes.' },
+  point: { label: 'Ton point de la semaine', tagline: 'Deux minutes pour voir où tu en es.' },
 };
 
 export const FIN = [
@@ -71,9 +72,10 @@ export function goLabel({ doneToday, comeback }) {
   return doneToday ? 'Encore une ? · 5 min' : 'Go · 5 min';
 }
 
-export function goSubtitle({ comeback, voiceDue = null, bloc3 }) {
+/** point : un point de la semaine est dû (weekly-point.js) ; il prend la place du bloc 3, jamais avec la voix. */
+export function goSubtitle({ comeback, voiceDue = null, bloc3, point = false }) {
   if (comeback) return 'Échauffement + une prise';
-  const third = bloc3 === 'posture' ? 'posture' : 'écoute';
+  const third = point && !voiceDue ? 'ton point de la semaine' : bloc3 === 'posture' ? 'posture' : 'écoute';
   return voiceDue ? `Aujourd'hui : mesure de ta voix + ${third}` : `Aujourd'hui : articulation + ${third}`;
 }
 

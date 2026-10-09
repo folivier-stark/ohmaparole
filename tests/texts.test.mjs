@@ -31,6 +31,8 @@ test('goLabel et goSubtitle', () => {
   assert.equal(goSubtitle({ comeback: false, voiceDue: null, bloc3: 'posture' }), "Aujourd'hui : articulation + posture");
   assert.equal(goSubtitle({ comeback: false, voiceDue: 'controle', bloc3: 'ecoute' }), "Aujourd'hui : mesure de ta voix + écoute");
   assert.equal(goSubtitle({ comeback: false, voiceDue: 'calibration', bloc3: 'posture' }), "Aujourd'hui : mesure de ta voix + posture");
+  assert.equal(goSubtitle({ comeback: false, voiceDue: null, bloc3: 'ecoute', point: true }), "Aujourd'hui : articulation + ton point de la semaine");
+  assert.equal(goSubtitle({ comeback: false, voiceDue: 'controle', bloc3: 'ecoute', point: true }), "Aujourd'hui : mesure de ta voix + écoute", 'jamais les deux');
   assert.equal(goSubtitle({ comeback: true, voiceDue: null, bloc3: 'ecoute' }), 'Échauffement + une prise');
   assert.equal(goSubtitle({ comeback: true, voiceDue: 'controle', bloc3: 'ecoute' }), 'Échauffement + une prise');
 });

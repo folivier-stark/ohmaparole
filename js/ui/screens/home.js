@@ -2,6 +2,7 @@ import { h } from '../dom.js';
 import { dayKey, diffDays } from '../../core/dates.js';
 import { homeStatus, monthCount, dailyCount, totalCount, backupDue, whyCheckDue, lastBloc3 } from '../../core/progress.js';
 import { voiceCheckDue } from '../../core/voice-plan.js';
+import { weeklyPointDue } from '../../core/weekly-point.js';
 import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv, RDV_EXIT_WINDOW_MS } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
@@ -112,7 +113,10 @@ export async function render(root, { repo, content, navigate }) {
       exit ? exitButton(exit, { repo, navigate }) : null,
       h('a', { class: status.doneToday ? 'btn btn-calm' : 'btn btn-go', href: '#/session/daily' },
         h('span', {}, goLabel(status)),
-        h('small', {}, goSubtitle({ comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)) }))),
+        h('small', {}, goSubtitle({
+          comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)),
+          point: Boolean(weeklyPointDue({ sessionNumber: dailyCount(sessions) + 1, sessions, voiceCheck: due, comeback: status.comeback })),
+        }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));
   return () => rdvCard?.destroy();
 }

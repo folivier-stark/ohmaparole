@@ -8,6 +8,8 @@ import { BLOCKS, plural, trendText, frequencyText } from '../../core/texts.js';
 import { createCompare } from '../components/compare.js';
 import { cumulativeChart, monthlyPoints, shortDayMonth, noiseBand } from '../components/chart.js';
 import { voiceReport, voiceSummary } from '../../core/voice-report.js';
+import { postureSupportLine } from '../../core/live-silence.js';
+import { pointSummary } from '../../core/weekly-point.js';
 import { souvenirs } from '../../core/louarn.js';
 import { createParcours } from '../components/parcours.js';
 
@@ -45,7 +47,24 @@ function voiceSection(measures, untilControl) {
   h('p', { class: 'label' }, 'Ton ressenti')];
 }
 
-function axisCard(sessions, today, a, top = null) {
+/** Posture : ligne de soutien mesurée au micro, sous le ressenti « Posé », qui reste l'indicateur du jour. */
+function postureBottom(measures) {
+  const line = postureSupportLine(measures);
+  return line ? [h('p', { class: 'label' }, 'Mesuré au micro'), h('p', {}, line), h('p', { class: 'muted small' }, 'Le signal vient à la durée de la consigne : plus long n’est pas mieux.')] : null;
+}
+
+/** « Ton point de la semaine » (spec V2 §6) : comptes bruts, environ, aucune baisse dite. */
+function pointCard(sessions, measures) {
+  const s = pointSummary({ sessions, measures });
+  return h('div', { class: 'card axis' },
+    h('h3', {}, 'Ton point de la semaine'),
+    h('p', { class: 'muted small' }, 'Toutes les 4 séances, à la place du bloc 3.'),
+    s.lines.length
+      ? s.lines.map((l) => h('p', {}, l))
+      : h('p', { class: 'muted' }, 'Ton premier point arrive à la fin du thème, toutes les 4 séances.'));
+}
+
+function axisCard(sessions, today, a, top = null, bottom = null) {
   const sum = axisSummary(sessions, a.key, today);
   const state = rateTrend(sessions, a.key, today);
   const blocks = monthlyBlocks(sessions, a.key, today);
@@ -60,7 +79,8 @@ function axisCard(sessions, today, a, top = null) {
         blocks.length ? monthlyPoints(blocks) : null,
         h('p', { class: 'muted small' }, sum.n ? `Sur 4 semaines, ${plural(sum.n, 'réponse')}. ${a.kind}` : a.kind),
       ]
-      : h('p', { class: 'muted' }, a.empty));
+      : h('p', { class: 'muted' }, a.empty),
+    bottom);
 }
 
 /** Une ligne « En rendez-vous » (eval-rdv.md §5.2) : x sur y, mois 1 à côté des 4 dernières semaines, sans flèche. */
@@ -135,7 +155,11 @@ export async function render(root, { repo, content }) {
 
   // Axes de progrès
   const voiceTop = voiceSection(measures, sessionsUntilControl(recordings, daily));
-  const axisCards = [...AXIS_CARDS.map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null)), rdvCard(sessions, today)];
+  const axisCards = [
+    ...AXIS_CARDS.map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
+    rdvCard(sessions, today),
+    pointCard(sessions, measures),
+  ];
 
   // Calendrier du mois
   const cal = h('div', { class: 'cal' },
