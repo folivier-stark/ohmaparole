@@ -1,5 +1,8 @@
 // Machine à états PURE. Le temps se calcule par différence d'horodatages,
 // jamais en comptant des ticks (setInterval est gelé en arrière-plan).
+// Un pas `untimed` (le bloc « Mesure de ta voix ») n'avance jamais par le temps : il dure le temps des
+// 3 prises et de leur analyse. Tout son temps compte comme de la pratique, sans plafond ; durationSec
+// n'est alors qu'une durée nominale, pour le plan de la séance.
 
 export const COUNT_THRESHOLD_MS = 60000;
 
@@ -32,7 +35,9 @@ export function remainingMs(s, now) {
 }
 
 function doneInStep(s, now) {
-  return Math.min(stepElapsedMs(s, now), currentStep(s).durationSec * 1000);
+  const st = currentStep(s);
+  const elapsed = stepElapsedMs(s, now);
+  return st.untimed ? elapsed : Math.min(elapsed, st.durationSec * 1000);
 }
 
 function advanceTo(s, nextIndex, now) {
@@ -45,6 +50,7 @@ function advanceTo(s, nextIndex, now) {
 
 export function tick(s, now) {
   if (s.status !== 'running') return s;
+  if (currentStep(s).untimed) return s;
   return remainingMs(s, now) === 0 ? advanceTo(s, s.index + 1, now) : s;
 }
 

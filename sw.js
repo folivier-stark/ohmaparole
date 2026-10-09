@@ -31,6 +31,8 @@ const ASSETS = [
   "./js/core/session-engine.js",
   "./js/core/stats.js",
   "./js/core/texts.js",
+  "./js/core/voice-plan.js",
+  "./js/core/voice-report.js",
   "./js/data/backup.js",
   "./js/data/content.js",
   "./js/data/db.js",

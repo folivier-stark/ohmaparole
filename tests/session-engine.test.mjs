@@ -103,3 +103,19 @@ test('pausedForMs', () => {
   assert.equal(pausedForMs(r, 5000), 4000);
   assert.equal(pausedForMs(createRun(steps, 0), 5000), 0);
 });
+
+test('pas sans limite (bloc voix) : jamais avancé par le temps, tout le temps passé compte', () => {
+  const st = [{ block: 'voix', durationSec: 120, untimed: true }, { block: 'B', durationSec: 60 }];
+  let r = createRun(st, 0);
+  r = tick(r, 500000);
+  assert.equal(r.index, 0, 'le bloc voix avance seulement quand il a fini');
+  assert.equal(remainingMs(r, 500000), 0);
+  assert.equal(practicedMs(r, 200000), 200000, 'pas plafonné à la durée nominale');
+  r = pause(r, 200000);
+  r = resume(r, 260000);
+  assert.equal(practicedMs(r, 300000), 240000, 'la pause ne compte pas');
+  r = next(r, 300000);
+  assert.equal(r.index, 1);
+  assert.equal(r.practicedMs, 240000);
+  assert.equal(isCounted(r.practicedMs), true);
+});
