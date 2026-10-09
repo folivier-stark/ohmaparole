@@ -128,17 +128,25 @@ export async function reanalyzeReferences({ repo, syllables, syllablesById = {},
 }
 
 let running = null;
+let again = null;
 
 /**
  * Lance la réanalyse en arrière-plan, après le premier affichage, sans bloquer l'accueil. Une seule à la
- * fois. Pendant une séance (#/session), elle attend.
+ * fois ; une demande arrivée pendant ce temps (import d'une sauvegarde) la relance UNE fois à la fin.
+ * Pendant une séance (#/session), elle attend.
  */
-export function scheduleReanalysis({ repo, syllables, syllablesById = {}, delayMs = 3000 }) {
-  if (running) return running;
+export function scheduleReanalysis(opts) {
+  if (running) { again = opts; return running; }
+  const { repo, syllables, syllablesById = {}, delayMs = 3000 } = opts;
   const inSession = () => typeof location !== 'undefined' && location.hash.startsWith('#/session');
   running = new Promise((resolve) => { setTimeout(resolve, delayMs); })
     .then(() => reanalyzeReferences({ repo, syllables, syllablesById, shouldWait: inSession }))
     .catch((e) => { console.error(e); return null; })
-    .finally(() => { running = null; });
+    .finally(() => {
+      running = null;
+      const next = again;
+      again = null;
+      if (next) scheduleReanalysis({ ...next, delayMs: 0 });
+    });
   return running;
 }

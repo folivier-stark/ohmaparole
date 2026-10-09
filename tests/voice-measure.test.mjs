@@ -150,3 +150,19 @@ test('reanalyzeReferences : attend la fin de la séance avant chaque décodage',
   assert.equal(r.analyzed, 1);
   assert.equal(waits.length, 3);
 });
+
+test('scheduleReanalysis : demandée pendant une réanalyse (import), elle est relancée une fois à la fin', async () => {
+  installOffline();
+  const { scheduleReanalysis } = await import('../js/audio/voice-measure.js');
+  const repo = fakeRepo({ recordings: [], audio: {} });
+  let runs = 0;
+  const list = repo.listRecordings;
+  repo.listRecordings = async () => { runs += 1; return list(); };
+  const first = scheduleReanalysis({ repo, syllables: SYLL, delayMs: 0 });
+  scheduleReanalysis({ repo, syllables: SYLL, delayMs: 0 });
+  scheduleReanalysis({ repo, syllables: SYLL, delayMs: 0 });
+  await first;
+  for (let i = 0; i < 50 && runs < 2; i++) await new Promise((r) => { setTimeout(r, 5); });
+  await new Promise((r) => { setTimeout(r, 30); });
+  assert.equal(runs, 2, 'une seule relance, quel que soit le nombre de demandes');
+});

@@ -27,7 +27,24 @@ async function render() {
   root.className = 'screen';
   app.replaceChildren(root);
   window.scrollTo(0, 0);
-  const result = await screen.render(root, { ...baseCtx, params, navigate });
+  let result;
+  try {
+    result = await screen.render(root, { ...baseCtx, params, navigate });
+  } catch (e) {
+    console.error(e);
+    if (token !== renderToken) return;
+    const box = document.createElement('div');
+    box.className = 'oups';
+    const p = document.createElement('p');
+    p.textContent = 'Oups, cet écran n’a pas pu s’afficher.';
+    const a = document.createElement('a');
+    a.href = '#/home';
+    a.className = 'btn-secondary';
+    a.textContent = 'Retour à l’accueil';
+    box.append(p, a);
+    root.replaceChildren(box);
+    return;
+  }
   if (typeof result !== 'function') return;
   if (token === renderToken) cleanup = result;
   else result();

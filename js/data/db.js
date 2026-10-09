@@ -2,36 +2,74 @@ const DB_NAME = 'ohmaparole';
 const DB_VERSION = 2;
 let dbPromise = null;
 
-export function openDb() {
-  if (!dbPromise) {
-    dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = (e) => {
-        const db = req.result;
-        // Migrations UNIQUEMENT additives : on ajoute des stores et des index, on ne touche à aucune donnée.
-        if (e.oldVersion < 1) {
-          db.createObjectStore('meta', { keyPath: 'key' });
-          db.createObjectStore('sessions', { keyPath: 'id' }).createIndex('dateKey', 'dateKey');
-          db.createObjectStore('recordings', { keyPath: 'id' }).createIndex('kind', 'kind');
-          db.createObjectStore('audio', { keyPath: 'id' });
-        }
-        // v2 (spec V2 §8) : les mesures de la voix, une ligne par valeur (js/core/voice-report.js).
-        if (e.oldVersion < 2) {
-          const measures = db.createObjectStore('measures', { keyPath: 'id' });
-          measures.createIndex('metric', 'metric');
-          measures.createIndex('dateKey', 'dateKey');
-        }
-      };
-      req.onsuccess = () => {
-        const db = req.result;
-        // Un onglet resté ouvert sur une version plus ancienne ne doit pas bloquer la mise à jour suivante.
-        db.onversionchange = () => { db.close(); dbPromise = null; };
-        resolve(db);
-      };
-      req.onerror = () => { dbPromise = null; reject(req.error); };
-    });
+export const BLOCKED_MESSAGE = 'Ferme les autres onglets OhMaParole, puis rouvre l’appli.';
+const BLOCKED_TIMEOUT_MS = 10000;
+
+/** Les stores et leurs index. Migrations UNIQUEMENT additives : on ajoute ce qui manque, on ne touche à rien. */
+const STORES = [
+  ['meta', 'key', []],
+  ['sessions', 'id', ['dateKey']],
+  ['recordings', 'id', ['kind']],
+  ['audio', 'id', []],
+  // v2 (spec V2 §8) : les mesures de la voix, une ligne par valeur (js/core/voice-report.js).
+  ['measures', 'id', ['metric', 'dateKey']],
+];
+
+function ensureStores(db) {
+  for (const [name, keyPath, indexes] of STORES) {
+    if (db.objectStoreNames.contains(name)) continue;
+    const os = db.createObjectStore(name, { keyPath });
+    for (const ix of indexes) os.createIndex(ix, ix);
   }
+}
+
+const hasAllStores = (db) => STORES.every(([name]) => db.objectStoreNames.contains(name));
+
+/** Un autre onglet tient l'ancienne version de la base : on le dit, au lieu d'un écran figé. */
+function showBlocked() {
+  const app = globalThis.document?.getElementById?.('app');
+  if (app) app.textContent = BLOCKED_MESSAGE;
+}
+
+function open(version, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const req = version == null ? indexedDB.open(DB_NAME) : indexedDB.open(DB_NAME, version);
+    // Pas de blocage infini au démarrage : au bout de 10 s, le même message que onblocked.
+    const timer = setTimeout(showBlocked, timeoutMs);
+    req.onupgradeneeded = () => ensureStores(req.result);
+    req.onblocked = showBlocked;
+    req.onsuccess = () => {
+      clearTimeout(timer);
+      const db = req.result;
+      // Une version future ouverte dans un autre onglet : on libère la base pour elle.
+      db.onversionchange = () => { db.close(); dbPromise = null; };
+      if (!hasAllStores(db)) {
+        // Base créée par la branche de secours (version 2 sans le store measures) : on la complète.
+        const next = db.version + 1;
+        db.close();
+        open(next, timeoutMs).then(resolve, reject);
+        return;
+      }
+      resolve(db);
+    };
+    req.onerror = () => {
+      clearTimeout(timer);
+      // Base déjà en version plus haute (après une réparation) : on l'ouvre à sa version.
+      if (req.error?.name === 'VersionError' && version != null) { open(null, timeoutMs).then(resolve, reject); return; }
+      dbPromise = null;
+      reject(req.error);
+    };
+  });
+}
+
+export function openDb({ timeoutMs = BLOCKED_TIMEOUT_MS } = {}) {
+  if (!dbPromise) dbPromise = open(DB_VERSION, timeoutMs);
   return dbPromise;
+}
+
+/** Pour les tests : oublie la base ouverte. */
+export function resetDbForTests() {
+  dbPromise = null;
 }
 
 const asPromise = (req) => new Promise((resolve, reject) => {
