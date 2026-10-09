@@ -1,5 +1,5 @@
 {
-  "sessionsPerWeek": 5,
+  "sessionsPerWeek": 4,
   "weeks": [
     {
       "week": 1,
@@ -115,6 +115,114 @@
     },
     {
       "week": 7,
+      "theme": "La confiance qui se voit et s’entend",
+      "articulation": [
+        "A53",
+        "A54",
+        "A55",
+        "A56"
+      ],
+      "ecoute": [
+        "L25",
+        "L26"
+      ],
+      "posture": [
+        "P25",
+        "P26"
+      ]
+    },
+    {
+      "week": 8,
+      "theme": "Prendre la parole à l’improviste",
+      "articulation": [
+        "A57",
+        "A58",
+        "A59",
+        "A60"
+      ],
+      "ecoute": [
+        "L27",
+        "L28"
+      ],
+      "posture": [
+        "P27",
+        "P28"
+      ]
+    },
+    {
+      "week": 9,
+      "theme": "Rendre un feedback",
+      "articulation": [
+        "A61",
+        "A62",
+        "A63",
+        "A64"
+      ],
+      "ecoute": [
+        "L29",
+        "L30"
+      ],
+      "posture": [
+        "P29",
+        "P30"
+      ]
+    },
+    {
+      "week": 10,
+      "theme": "Gérer une personne difficile",
+      "articulation": [
+        "A65",
+        "A66",
+        "A67",
+        "A68"
+      ],
+      "ecoute": [
+        "L31",
+        "L32"
+      ],
+      "posture": [
+        "P31",
+        "P32"
+      ]
+    },
+    {
+      "week": 11,
+      "theme": "Désamorcer une tension",
+      "articulation": [
+        "A69",
+        "A70",
+        "A71",
+        "A72"
+      ],
+      "ecoute": [
+        "L33",
+        "L34"
+      ],
+      "posture": [
+        "P33",
+        "P34"
+      ]
+    },
+    {
+      "week": 12,
+      "theme": "Lire les gens",
+      "articulation": [
+        "A73",
+        "A74",
+        "A75",
+        "A76"
+      ],
+      "ecoute": [
+        "L35",
+        "L36"
+      ],
+      "posture": [
+        "P35",
+        "P36"
+      ]
+    },
+    {
+      "week": 13,
       "theme": "Les 30 premières secondes",
       "articulation": [
         "A29",
@@ -132,7 +240,7 @@
       ]
     },
     {
-      "week": 8,
+      "week": 14,
       "theme": "La prise de contact",
       "articulation": [
         "A33",
@@ -150,7 +258,7 @@
       ]
     },
     {
-      "week": 9,
+      "week": 15,
       "theme": "Raconter un cas client en 60 s",
       "articulation": [
         "A37",
@@ -168,7 +276,7 @@
       ]
     },
     {
-      "week": 10,
+      "week": 16,
       "theme": "Recadrer un prospect qui s’étale",
       "articulation": [
         "A41",
@@ -186,7 +294,7 @@
       ]
     },
     {
-      "week": 11,
+      "week": 17,
       "theme": "Dire non sans abîmer la relation",
       "articulation": [
         "A45",
@@ -204,7 +312,7 @@
       ]
     },
     {
-      "week": 12,
+      "week": 18,
       "theme": "Repérer un signal d’achat et conclure",
       "articulation": [
         "A49",

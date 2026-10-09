@@ -16,6 +16,10 @@ test('programPosition avance par blocs de 5 séances', () => {
   assert.deepEqual(programPosition(31, 12), { cycle: 1, week: 7 });
   assert.deepEqual(programPosition(60, 12), { cycle: 1, week: 12 });
   assert.deepEqual(programPosition(61, 12), { cycle: 2, week: 1 });
+  assert.deepEqual(programPosition(4, 18, 4), { cycle: 1, week: 1 });
+  assert.deepEqual(programPosition(5, 18, 4), { cycle: 1, week: 2 });
+  assert.deepEqual(programPosition(72, 18, 4), { cycle: 1, week: 18 });
+  assert.deepEqual(programPosition(73, 18, 4), { cycle: 2, week: 1 });
 });
 
 test('nextBloc3 alterne', () => {
@@ -107,18 +111,20 @@ test('avant RDV : 90 s, consigne différente de la précédente', () => {
   assert.deepEqual(p.steps.map((s) => s.kind), ['objective', 'breathe', 'consigne']);
 });
 
-test('programme de 12 semaines : la séance 31 tire dans les Situations de RDV (semaine 7)', () => {
-  assert.equal(content.program.weeks.length, 12);
-  const p = buildDailyPlan({ content, sessionNumber: 31, dateKey: '2026-12-01' });
-  assert.equal(p.week, 7);
-  assert.equal(p.cycle, 1);
-  const ids = content.program.weeks[6].articulation.map((id) => `fr.${id}`);
-  assert.ok(ids.includes(artId(p)));
-  assert.equal(total(p), 300);
+test('programme de 18 semaines × 4 séances : Charisme à la séance 25, Situations à la séance 49', () => {
+  assert.equal(content.program.weeks.length, 18);
+  assert.equal(content.program.sessionsPerWeek, 4);
+  const charisme = buildDailyPlan({ content, sessionNumber: 25, dateKey: '2026-12-01' });
+  assert.equal(charisme.week, 7);
+  assert.ok(content.program.weeks[6].articulation.map((id) => `fr.${id}`).includes(artId(charisme)));
+  const situations = buildDailyPlan({ content, sessionNumber: 49, dateKey: '2027-01-01' });
+  assert.equal(situations.week, 13);
+  assert.ok(content.program.weeks[12].articulation.map((id) => `fr.${id}`).includes(artId(situations)));
+  assert.equal(total(situations), 300);
 });
 
-test('séance 61 : nouveau cycle, retour en semaine 1', () => {
-  const p = buildDailyPlan({ content, sessionNumber: 61, dateKey: '2027-02-01' });
+test('séance 73 : nouveau cycle, retour en semaine 1', () => {
+  const p = buildDailyPlan({ content, sessionNumber: 73, dateKey: '2027-02-01' });
   assert.equal(p.cycle, 2);
   assert.equal(p.week, 1);
 });

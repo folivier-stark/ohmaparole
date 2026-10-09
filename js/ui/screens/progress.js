@@ -1,7 +1,7 @@
 import { h } from '../dom.js';
 import { dayKey, longDateFr, MONTHS_FR } from '../../core/dates.js';
 import { monthCount, totalCount, dailyCount, monthGrid, milestonesUpTo, nextMilestone } from '../../core/progress.js';
-import { cumulativeSeries, goalProgress, weeklyRate, axisSummary, recentGoals } from '../../core/dashboard.js';
+import { programGoal, cumulativeSeries, goalProgress, weeklyRate, axisSummary, recentGoals } from '../../core/dashboard.js';
 import { BLOCKS, plural } from '../../core/texts.js';
 import { createCompare } from '../components/compare.js';
 import { cumulativeChart, weeklyBars, shortDayMonth } from '../components/chart.js';
@@ -31,7 +31,7 @@ function axisCard(sessions, today, a) {
       : h('p', { class: 'muted' }, a.empty));
 }
 
-export async function render(root, { repo }) {
+export async function render(root, { repo, content }) {
   const today = dayKey(Date.now());
   const [y, m] = today.split('-').map(Number);
   const [sessions, recordings] = await Promise.all([repo.listSessions(), repo.listRecordings()]);
@@ -42,7 +42,7 @@ export async function render(root, { repo }) {
   const cleanups = [];
 
   // Objectif 60 séances + courbe du cumul
-  const g = goalProgress(sessions, today);
+  const g = goalProgress(sessions, today, programGoal(content.program));
   const series = cumulativeSeries(sessions, today);
   const goalCard = h('div', { class: 'card' },
     h('h2', {}, `Objectif ${g.goal} séances`),

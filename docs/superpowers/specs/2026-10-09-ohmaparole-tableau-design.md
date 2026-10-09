@@ -31,11 +31,11 @@ Les notes sont rangées dans `session.ratings[itemId]`. Les trois jeux de valeur
 ## Écran Progression, dans l'ordre
 
 1. **Le mois en cours**, inchangé : le grand chiffre et le cumul.
-2. **Carte « Objectif 60 séances »** :
-   - « 23 / 60 », avec la barre de progression ;
-   - « Encore 37 séances. À 60, l'anglais et l'espagnol se débloquent. » Une fois l'objectif atteint : « Objectif atteint ! Prochaine étape : l'anglais. » ;
+2. **Carte « Objectif 72 séances »** :
+   - « 23 / 72 », avec la barre de progression ;
+   - « Encore 37 séances. À 72, l'anglais et l'espagnol se débloquent. » Une fois l'objectif atteint : « Objectif atteint ! Prochaine étape : l'anglais. » ;
    - **la date d'arrivée estimée**, au rythme des 28 derniers jours. Il faut au moins 7 jours d'historique et au moins une séance dans cette fenêtre. Sinon : « La date estimée apparaît après une semaine de pratique. » ;
-   - **la courbe du cumul** : un point par jour, qui ne redescend jamais. Une ligne pointillée marque 60. **Pas** de ligne de « rythme idéal ».
+   - **la courbe du cumul** : un point par jour, qui ne redescend jamais. Une ligne pointillée marque 72. **Pas** de ligne de « rythme idéal ».
 3. **« Tes axes de progrès »**, une carte par axe. Chaque carte contient :
    - le titre et ce que l'axe apporte en RDV (les taglines de `BLOCKS`) ;
    - « Sur 4 semaines : 62 % (13 réponses) », plus « en hausse » si ce taux dépasse d'au moins 10 points celui des 4 semaines précédentes, avec au moins 3 réponses de chaque côté ;
@@ -53,7 +53,7 @@ L'ancienne carte « En rendez-vous » est remplacée par la carte de l'axe RDV.
 ## Technique
 
 - **`js/core/dashboard.js`**, pur et testé. Il expose :
-  - `GOAL_SESSIONS = 60` et `AXES` ;
+  - `GOAL_SESSIONS = 72 (et `programGoal(program)`)` et `AXES` ;
   - `cumulativeSeries(sessions, todayKey)` ;
   - `goalProgress(sessions, todayKey, goal)` ;
   - `weeklyRate(sessions, axisKey, limit)` ;

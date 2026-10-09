@@ -75,7 +75,7 @@ Pas d'enregistrement. **Compte comme un jour pratiqué** (marqué d'un losange d
 
 ### 5.1 Programme
 
-- **12 semaines** de programme : semaines 1 à 6 de base (`expert-contenu.md` §2), puis semaines 7 à 12 « Situations de RDV » (`expert-contenu-situations.md`, ajoutées le 09/10). **Le programme avance au nombre de séances, pas au calendrier** : 1 semaine de programme = 5 séances, donc **60 séances par cycle**, ce qui correspond à l'objectif 60. Un jour manqué ne met jamais « en retard ».
+- **18 thèmes de 4 séances = 72 séances par cycle** (décision de Fred du 09/10) : Fondations 1-6 (`expert-contenu.md`), Charisme et confiance 7-12 (`expert-contenu-charisme.md`), Situations de RDV 13-18 (`expert-contenu-situations.md`). **Le programme avance au nombre de séances, pas au calendrier.** L'objectif est de 72 séances, puis viennent l'anglais et l'espagnol. Un jour manqué ne met jamais « en retard ».
 - Après le cycle 1, le programme repart en semaine 1, avec tous les items débloqués.
 - **Coupé de la V1** (prévu en V1.1) : la pondération par les notes « Brouillon », le « niveau + » et l'ajout de ses propres phrases. Les notes sont **enregistrées dès la V1** pour pouvoir s'en servir ensuite.
 

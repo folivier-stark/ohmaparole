@@ -1,6 +1,11 @@
 import { addDays, diffDays, weekdayMon0 } from './dates.js';
 
-export const GOAL_SESSIONS = 60;
+export const GOAL_SESSIONS = 72;
+
+/** Objectif = un cycle complet du programme (semaines × séances par semaine). */
+export function programGoal(program) {
+  return program.weeks.length * (program.sessionsPerWeek ?? 5);
+}
 
 /**
  * Axes de progrès. source : où lire la réponse dans une séance.

@@ -2,8 +2,8 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { extractYamlBlocks, parseYamlSubset } from './yaml-subset.mjs';
 
 const LANG = 'fr';
-// Programme de base (semaines 1-6) puis pack « Situations de RDV » (semaines 7-12).
-const SOURCES = ['docs/experts/expert-contenu.md', 'docs/experts/expert-contenu-situations.md'];
+// Fondations (semaines 1-6), « Charisme et confiance » (7-12), « Situations de RDV » (13-18).
+const SOURCES = ['docs/experts/expert-contenu.md', 'docs/experts/expert-contenu-charisme.md', 'docs/experts/expert-contenu-situations.md'];
 const { items, consignes } = parseYamlSubset(SOURCES.map((f) => extractYamlBlocks(readFileSync(f, 'utf8'))).join('\n'));
 
 const norm = (r) => {

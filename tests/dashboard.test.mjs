@@ -2,14 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { addDays } from '../js/core/dates.js';
 import {
-  GOAL_SESSIONS, cumulativeSeries, goalProgress, weeklyRate, axisSummary, recentGoals,
+  GOAL_SESSIONS, programGoal, cumulativeSeries, goalProgress, weeklyRate, axisSummary, recentGoals,
 } from '../js/core/dashboard.js';
 
 const S = (o) => ({ type: 'daily', counted: true, startedAt: 0, ratings: {}, ...o });
 const nDays = (n, from) => Array.from({ length: n }, (_, i) => S({ dateKey: addDays(from, i), startedAt: i }));
 
-test('objectif par défaut : 60 séances', () => {
-  assert.equal(GOAL_SESSIONS, 60);
+test('objectif par défaut : 72 séances, et calculé depuis le programme', () => {
+  assert.equal(GOAL_SESSIONS, 72);
+  assert.equal(programGoal({ sessionsPerWeek: 4, weeks: new Array(18) }), 72);
+  assert.equal(programGoal({ weeks: new Array(6) }), 30);
 });
 
 test('cumulativeSeries : un point par jour, ne redescend jamais, ignore RDV et non comptées', () => {
@@ -26,10 +28,10 @@ test('cumulativeSeries : un point par jour, ne redescend jamais, ignore RDV et n
 test('goalProgress : avancement et date estimée au rythme récent', () => {
   const g = goalProgress(nDays(14, '2026-10-01'), '2026-10-14');
   assert.equal(g.done, 14);
-  assert.equal(g.left, 46);
-  assert.equal(g.pct, 23);
+  assert.equal(g.left, 58);
+  assert.equal(g.pct, 19);
   assert.equal(g.reached, false);
-  assert.equal(g.etaKey, '2026-11-29');
+  assert.equal(g.etaKey, '2026-12-11');
 });
 
 test("goalProgress : pas de date avant 7 jours d'historique, ni sans séance dans les 28 derniers jours", () => {
@@ -41,7 +43,7 @@ test("goalProgress : pas de date avant 7 jours d'historique, ni sans séance dan
 });
 
 test('goalProgress : objectif atteint', () => {
-  const g = goalProgress(nDays(61, '2026-08-01'), '2026-10-12');
+  const g = goalProgress(nDays(73, '2026-08-01'), '2026-10-12');
   assert.equal(g.reached, true);
   assert.equal(g.left, 0);
   assert.equal(g.pct, 100);
