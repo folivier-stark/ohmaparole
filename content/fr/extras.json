@@ -2,7 +2,8 @@
   "reference": {
     "id": "fr.REF1",
     "titre": "Texte de référence",
-    "texte": "Bonjour, je suis Fred. Mon métier, c'est de faire le pont entre la technique et l'humain. J'accompagne les artisans et les petites entreprises dans leur transformation numérique. Avant de parler d'outils, j'aimerais comprendre votre quotidien : qu'est-ce qui vous prend le plus de temps en ce moment ? Les chaussettes de l'archiduchesse sont-elles sèches, archisèches ?"
+    "texte": "Bonjour, je suis Fred. Mon métier, c'est de faire le pont entre la technique et l'humain. J'accompagne les artisans et les petites entreprises dans leur transformation numérique. Avant de parler d'outils, j'aimerais comprendre votre quotidien : qu'est-ce qui vous prend le plus de temps en ce moment ? Les chaussettes de l'archiduchesse sont-elles sèches, archisèches ?",
+    "syllabes": 86
   },
   "objectifDefaut": "Être posé et clair en rendez-vous, face à 1 à 3 personnes.",
   "pourquoiExemples": [
