@@ -14,6 +14,7 @@ export async function render(root, { repo }) {
   const [sessions, recordings] = await Promise.all([repo.listSessions(), repo.listRecordings()]);
   const daily = dailyCount(sessions);
   const total = totalCount(sessions);
+  const monthDays = monthCount(sessions, y, m);
   const grid = monthGrid(sessions, y, m, today);
   const cleanups = [];
 
@@ -58,8 +59,8 @@ export async function render(root, { repo }) {
 
   root.replaceChildren(h('div', { class: 'progress' },
     h('a', { class: 'back', href: '#/home' }, '‹ Accueil'),
-    h('p', { class: 'big-count' }, String(monthCount(sessions, y, m))),
-    h('p', {}, `jours pratiqués en ${MONTHS_FR[m - 1]}`),
+    h('p', { class: 'big-count' }, String(monthDays)),
+    h('p', {}, `${monthDays > 1 ? 'jours pratiqués' : 'jour pratiqué'} en ${MONTHS_FR[m - 1]}`),
     h('p', { class: 'muted' }, `${plural(total, 'séance')} depuis le début`),
     cal, voice, rdv));
   return () => cleanups.forEach((f) => f());

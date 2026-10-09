@@ -59,20 +59,33 @@ export async function render(root, { repo, content, navigate }) {
       h('button', { class: 'btn btn-go', onclick: rec }, '● Enregistrer'),
       h('button', { class: 'btn-link', onclick: step4 }, 'Plus tard'),
     );
+    // busy : un double tap ne doit ni ouvrir deux fois le micro, ni arrêter deux fois la prise.
+    let busy = false;
     async function rec() {
+      if (state.recorder || busy) return;
+      busy = true;
       try {
         state.recorder = await startRecording();
       } catch {
         status.textContent = 'Sans micro, pas d’enregistrement. Tu peux l’autoriser dans les réglages du téléphone. Le reste marche quand même.';
         return;
+      } finally {
+        busy = false;
       }
       buzz('start');
       status.textContent = 'J’enregistre… Lis le texte à ton rythme.';
       actions.replaceChildren(h('button', { class: 'btn btn-rec', onclick: stopRec }, '■ J’ai fini'));
     }
     async function stopRec() {
-      const res = await state.recorder.stop();
-      state.recorder = null;
+      if (busy || !state.recorder) return;
+      busy = true;
+      let res;
+      try {
+        res = await state.recorder.stop();
+      } finally {
+        state.recorder = null;
+        busy = false;
+      }
       if (!res || !res.blob.size) { status.textContent = 'La prise est vide. On recommence ?'; idle(); return; }
       state.take = res;
       status.textContent = 'Réécoute.';
@@ -139,7 +152,7 @@ export async function render(root, { repo, content, navigate }) {
         onclick: async () => {
           await repo.setMeta('settings', { ...prefs, reminderTime: time.value || '08:30' });
           await repo.setMeta('onboarded', true);
-          navigate('/home');
+          navigate('/home', { replace: true });
         },
       }, 'C’est parti'),
     );

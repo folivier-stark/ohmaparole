@@ -31,12 +31,12 @@ export async function render(root, { repo, content, navigate, params }) {
     }
   }
 
-  if (s.sessionNumber === 3 && !(await repo.getMeta('clinicalNoteShown', false))) {
+  if ((s.sessionNumber ?? 0) >= 3 && !(await repo.getMeta('clinicalNoteShown', false))) {
     await repo.setMeta('clinicalNoteShown', true);
     children.push(h('div', { class: 'card' }, h('p', { class: 'label' }, 'À savoir'), h('p', {}, content.extras.noteClinique)));
   }
 
-  children.push(h('button', { class: 'btn btn-go', onclick: () => navigate('/home') }, 'Fermer'));
+  children.push(h('button', { class: 'btn btn-go', onclick: () => navigate('/home', { replace: true }) }, 'Fermer'));
   root.replaceChildren(h('div', { class: 'end' }, children));
   return () => cleanups.forEach((f) => f());
 }

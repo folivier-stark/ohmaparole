@@ -49,7 +49,7 @@ export async function render(root, { repo, content, navigate }) {
     card,
     backupDue(lastBackupAt, now, total) ? h('a', { class: 'backup-line', href: '#/settings' }, 'Pense à sauvegarder tes données ›') : null,
     h('div', { class: 'actions' },
-      h('a', { class: 'btn btn-go', href: '#/session/daily' },
+      h('a', { class: status.doneToday ? 'btn btn-calm' : 'btn btn-go', href: '#/session/daily' },
         h('span', {}, goLabel(status)),
         h('small', {}, goSubtitle({ comeback: status.comeback, dueMilestone: due, bloc3: nextBloc3(lastBloc3(sessions)) }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));

@@ -17,6 +17,7 @@
 html, body { margin: 0; min-height: 100%; }
 body { background: var(--bg); color: var(--text); font: 18px/1.5 var(--font-body); -webkit-tap-highlight-color: transparent; }
 .app { max-width: 520px; margin: 0 auto; min-height: 100dvh; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+.screen { display: flex; flex-direction: column; flex: 1; }
 h1, h2, .btn, .ready-title, .big-count, .timer-label, .step-title, .block-label { font-family: var(--font-title); }
 h1 { font-size: 28px; line-height: 1.25; margin: 8px 0 16px; }
 h2 { font-size: 22px; margin: 0 0 8px; }
@@ -30,6 +31,7 @@ a { color: var(--primary); }
 .btn small { font-family: var(--font-body); font-size: 15px; font-weight: 400; }
 .btn-go { background: var(--primary); color: var(--on-primary); }
 .btn-rdv { background: var(--accent); color: var(--on-accent); }
+.btn-calm { background: var(--surface); border: 2px solid var(--primary); color: var(--primary); }
 .btn-rec { background: var(--rec); color: var(--on-rec); }
 .btn-secondary { display: flex; align-items: center; justify-content: center; min-height: 56px; width: 100%; margin: 8px 0; border: 2px solid var(--primary); border-radius: 16px; background: transparent; color: var(--primary); font: 600 18px var(--font-title); text-decoration: none; cursor: pointer; }
 .btn-small { min-height: 56px; min-width: 56px; flex: 1; border: 2px solid var(--primary); border-radius: 14px; background: var(--surface); color: var(--text); font: 600 17px var(--font-title); cursor: pointer; }
@@ -40,7 +42,7 @@ a { color: var(--primary); }
 .field { width: 100%; min-height: 56px; padding: 12px; border: 2px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); font: 18px var(--font-body); }
 textarea.field { min-height: 96px; resize: vertical; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.chip { min-height: 44px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: 15px var(--font-body); cursor: pointer; text-align: left; }
+.chip { min-height: 56px; display: inline-flex; align-items: center; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: 15px var(--font-body); cursor: pointer; text-align: left; }
 .why { font-style: italic; }
 .say { font-size: 25px; line-height: 1.45; margin: 12px 0; }
 .say.small { font-size: 19px; }
@@ -54,10 +56,10 @@ textarea.field { min-height: 96px; resize: vertical; }
 /* Accueil */
 .home { display: flex; flex-direction: column; flex: 1; }
 .top { display: flex; justify-content: space-between; align-items: center; }
-.count { font: 600 20px var(--font-title); text-decoration: none; color: var(--text); }
+.count { min-height: 56px; display: inline-flex; align-items: center; font: 600 20px var(--font-title); text-decoration: none; color: var(--text); }
 .gear { font-size: 26px; text-decoration: none; color: var(--text-2); min-width: 56px; min-height: 56px; display: flex; align-items: center; justify-content: flex-end; }
 .context { font-size: 20px; margin: 24px 0 8px; }
-.backup-line { display: block; margin: 8px 0; color: var(--accent-text); }
+.backup-line { min-height: 56px; display: flex; align-items: center; margin: 8px 0; color: var(--accent-text); }
 .actions { margin-top: auto; display: flex; flex-direction: column; gap: 16px; padding-top: 24px; }
 
 /* Séance */
