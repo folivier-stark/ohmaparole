@@ -23,6 +23,7 @@ const ASSETS = [
   "./js/core/progress.js",
   "./js/core/reminder.js",
   "./js/core/session-engine.js",
+  "./js/core/stats.js",
   "./js/core/texts.js",
   "./js/data/backup.js",
   "./js/data/content.js",
