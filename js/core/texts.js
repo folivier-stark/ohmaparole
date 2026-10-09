@@ -34,6 +34,7 @@ export const PAS_COMPTE = 'Pas encore compté. Une minute suffit.';
 export function homeLine({ doneToday, comeback, yesterdayOff, dueMilestone, why, motivations, seed }) {
   if (doneToday) return "C'est fait pour aujourd'hui.";
   if (comeback) return variant(RETOUR, seed);
+  if (dueMilestone === 1) return "Aujourd'hui, on enregistre ta voix de départ.";
   if (dueMilestone) return `Jalon ${dueMilestone} aujourd'hui : tu vas réentendre ta voix du début.`;
   if (yesterdayOff) return "Hier, pause. Aujourd'hui, 1 minute suffit pour que ça compte.";
   if (why && seed % 3 === 0) return `Ton pourquoi : « ${why} »`;
@@ -46,7 +47,7 @@ export function goLabel({ doneToday, comeback }) {
 }
 
 export function goSubtitle({ comeback, dueMilestone, bloc3 }) {
-  if (comeback) return dueMilestone ? 'Échauffement + ta voix de référence' : 'Échauffement + une prise';
+  if (comeback) return 'Échauffement + une prise';
   const third = bloc3 === 'posture' ? 'posture' : 'écoute';
   return dueMilestone ? `Aujourd'hui : ta voix de référence + ${third}` : `Aujourd'hui : articulation + ${third}`;
 }

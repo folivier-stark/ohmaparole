@@ -12,6 +12,7 @@ test('homeLine : priorités', () => {
   assert.equal(homeLine({ ...base, doneToday: true }), "C'est fait pour aujourd'hui.");
   assert.ok(RETOUR.includes(homeLine({ ...base, comeback: true })));
   assert.match(homeLine({ ...base, dueMilestone: 7 }), /Jalon 7/);
+  assert.equal(homeLine({ ...base, dueMilestone: 1 }), "Aujourd'hui, on enregistre ta voix de départ.");
   assert.match(homeLine({ ...base, yesterdayOff: true }), /Hier, pause/);
   assert.equal(homeLine({ ...base, seed: 3 }), 'Ton pourquoi : « Être clair »');
   assert.equal(homeLine({ ...base, seed: 1 }), 'm1');
@@ -24,6 +25,7 @@ test('goLabel et goSubtitle', () => {
   assert.equal(goSubtitle({ comeback: false, dueMilestone: null, bloc3: 'posture' }), "Aujourd'hui : articulation + posture");
   assert.equal(goSubtitle({ comeback: false, dueMilestone: 7, bloc3: 'ecoute' }), "Aujourd'hui : ta voix de référence + écoute");
   assert.equal(goSubtitle({ comeback: true, dueMilestone: null, bloc3: 'ecoute' }), 'Échauffement + une prise');
+  assert.equal(goSubtitle({ comeback: true, dueMilestone: 7, bloc3: 'ecoute' }), 'Échauffement + une prise');
 });
 
 test('plural, FIN, milestoneMessage', () => {

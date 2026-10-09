@@ -40,8 +40,11 @@ function articulationSteps(it) {
 
 function referenceSteps(ref, milestone) {
   const title = milestone === 1 ? 'Ta voix de départ' : `Jalon ${milestone}`;
+  const lines = milestone === 1
+    ? ['Ta voix de départ, pour la comparer plus tard.', 'Lis-le une fois dans ta tête.']
+    : ['Même texte que le premier jour.', 'Lis-le une fois dans ta tête.'];
   return [
-    { block: 'jalon', kind: 'guide', durationSec: 20, itemId: ref.id, title, lines: ['Même texte que le premier jour.', 'Lis-le une fois dans ta tête.'], text: ref.texte, speak: 'Lis le texte une fois dans ta tête.' },
+    { block: 'jalon', kind: 'guide', durationSec: 20, itemId: ref.id, title, lines, text: ref.texte, speak: 'Lis le texte une fois dans ta tête.' },
     { block: 'jalon', kind: 'record', durationSec: 60, itemId: ref.id, title, lines: ["À ton rythme naturel. J'enregistre."], text: ref.texte, speak: null, recordKind: 'reference', milestone },
     { block: 'jalon', kind: 'replay', durationSec: 40, itemId: ref.id, title: 'Réécoute', lines: ['Écoute-toi, sans te juger.'], text: ref.texte, speak: null, rate: false },
   ];
@@ -64,9 +67,11 @@ export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, 
   const moteur = pickLeastRecent(warm.filter((e) => e.type === 'moteur'), history, `${seed}:moteur`);
   const steps = [guide('echauffement', voix, 30), guide('echauffement', moteur, 30)];
   const itemIds = [voix.id, moteur.id];
+  // Une reprise ne porte jamais de jalon : il reste dû pour la séance suivante.
+  const milestone = comeback ? null : dueMilestone;
 
-  if (dueMilestone) {
-    steps.push(...referenceSteps(content.reference, dueMilestone));
+  if (milestone) {
+    steps.push(...referenceSteps(content.reference, milestone));
   } else {
     const art = pickLeastRecent(weekItems(content, week, 'articulation'), history, `${seed}:art`);
     itemIds.push(art.id);
@@ -84,7 +89,7 @@ export function buildDailyPlan({ content, history = [], sessionNumber, dateKey, 
     steps.push(...(bloc3 === 'ecoute' ? ecouteSteps(it) : [guide('posture', it, 120)]));
   }
 
-  return { type: comeback ? 'comeback' : 'daily', sessionNumber, cycle, week, bloc3, milestone: dueMilestone, itemIds, steps };
+  return { type: comeback ? 'comeback' : 'daily', sessionNumber, cycle, week, bloc3, milestone, itemIds, steps };
 }
 
 export function buildRdvPlan({ content, dateKey, lastConsigneId = null }) {

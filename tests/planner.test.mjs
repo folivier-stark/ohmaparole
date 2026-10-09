@@ -79,6 +79,23 @@ test('reprise : 2 min, pas de bloc 3', () => {
   assert.deepEqual(p.steps.filter((s) => s.block === 'articulation').map((s) => s.kind), ['record', 'replay']);
 });
 
+test('reprise + jalon dû = 120 s, milestone null', () => {
+  const p = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10', dueMilestone: 7, comeback: true });
+  assert.equal(p.type, 'comeback');
+  assert.equal(total(p), 120);
+  assert.equal(p.milestone, null);
+  assert.equal(p.steps.filter((s) => s.block === 'jalon').length, 0);
+  assert.deepEqual(p.steps.filter((s) => s.block === 'articulation').map((s) => s.kind), ['record', 'replay']);
+});
+
+test('jalon 1 : consigne de voix de départ, pas « même texte »', () => {
+  const p = buildDailyPlan({ content, sessionNumber: 1, dateKey: '2026-10-10', dueMilestone: 1 });
+  const first = p.steps.find((s) => s.block === 'jalon');
+  assert.deepEqual(first.lines, ['Ta voix de départ, pour la comparer plus tard.', 'Lis-le une fois dans ta tête.']);
+  const p7 = buildDailyPlan({ content, sessionNumber: 7, dateKey: '2026-10-10', dueMilestone: 7 });
+  assert.equal(p7.steps.find((s) => s.block === 'jalon').lines[0], 'Même texte que le premier jour.');
+});
+
 test('avant RDV : 90 s, consigne différente de la précédente', () => {
   const p = buildRdvPlan({ content, dateKey: '2026-10-10', lastConsigneId: 'fr.C01' });
   assert.equal(p.type, 'prerdv');
