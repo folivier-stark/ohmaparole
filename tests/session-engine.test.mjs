@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createRun, tick, next, pause, resume, skipBlock, stop,
+  createRun, tick, next, pause, resume, skipBlock, stop, restartStep,
   remainingMs, practicedMs, isCounted, pausedForMs, currentStep,
 } from '../js/core/session-engine.js';
 
@@ -43,6 +43,21 @@ test('next termine un pas en avance', () => {
   r = next(r, 5000);
   assert.equal(r.index, 1);
   assert.equal(r.practicedMs, 5000);
+});
+
+test('restartStep repart à zéro sur le pas courant et garde le temps pratiqué', () => {
+  let r = createRun(steps, 0);
+  r = tick(r, 30000);
+  r = pause(r, 40000);
+  r = resume(r, 100000);
+  r = restartStep(r, 100000);
+  assert.equal(r.index, 1);
+  assert.equal(r.status, 'running');
+  assert.equal(remainingMs(r, 100000), 30000);
+  assert.equal(r.practicedMs, 40000);
+  assert.equal(practicedMs(r, 105000), 45000);
+  const p = pause(createRun(steps, 0), 1000);
+  assert.equal(restartStep(p, 5000), p);
 });
 
 test('skipBlock saute au bloc suivant', () => {

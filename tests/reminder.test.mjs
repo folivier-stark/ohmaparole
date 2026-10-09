@@ -13,6 +13,11 @@ test('calendarUrl : événement quotidien avec lien vers la séance', () => {
   assert.equal(u.searchParams.get('text'), 'OhMaParole 5 min, pour : Être clair');
 });
 
+test('calendarUrl : une fin après minuit passe au lendemain', () => {
+  const u = new URL(calendarUrl({ dateKey: '2026-10-10', time: '23:57', why: '', appUrl: 'https://x.github.io/ohmaparole/' }));
+  assert.equal(u.searchParams.get('dates'), '20261010T235700/20261011T000200');
+});
+
 test('alarmLabel coupe le pourquoi à 40 caractères', () => {
   const l = alarmLabel('a'.repeat(60));
   assert.ok(l.endsWith('…'));

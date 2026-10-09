@@ -1,3 +1,5 @@
+import { addDays } from './dates.js';
+
 const pad = (n) => String(n).padStart(2, '0');
 
 export function alarmLabel(why) {
@@ -12,7 +14,8 @@ export function calendarUrl({ dateKey, time, why, appUrl }) {
   const d = dateKey.replaceAll('-', '');
   const endMin = hh * 60 + mm + 5;
   const start = `${d}T${pad(hh)}${pad(mm)}00`;
-  const end = `${d}T${pad(Math.floor(endMin / 60) % 24)}${pad(endMin % 60)}00`;
+  const endDay = endMin >= 1440 ? addDays(dateKey, 1).replaceAll('-', '') : d;
+  const end = `${endDay}T${pad(Math.floor(endMin / 60) % 24)}${pad(endMin % 60)}00`;
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: alarmLabel(why),

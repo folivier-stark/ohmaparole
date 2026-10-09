@@ -71,13 +71,14 @@ export function homeStatus(sessions, todayKey) {
     doneToday,
     daysWithout,
     comeback: daysWithout !== null && daysWithout >= 3,
-    yesterdayOff: daysWithout === 1,
+    yesterdayOff: daysWithout !== null && daysWithout >= 1 && daysWithout < 3,
   };
 }
 
 export function pendingFeedback(sessions, now) {
   return sessions
-    .filter((s) => s.type === 'prerdv' && isCountedSession(s) && s.feedback == null && !s.feedbackSkipped
+    // Un RDV écourté reste un vrai RDV : 30 s de pratique suffisent pour demander le retour.
+    .filter((s) => s.type === 'prerdv' && (s.practicedSec ?? 0) >= 30 && s.feedback == null && !s.feedbackSkipped
       && now - s.endedAt >= HOUR && now - s.endedAt <= 3 * DAY)
     .sort((a, b) => b.endedAt - a.endedAt)[0] ?? null;
 }
@@ -95,7 +96,7 @@ export function historyIds(sessions) {
 }
 
 export function lastBloc3(sessions) {
-  return [...sessions].sort(byStartDesc).find((s) => s.bloc3)?.bloc3 ?? null;
+  return [...sessions].sort(byStartDesc).find((s) => isCountedSession(s) && s.bloc3)?.bloc3 ?? null;
 }
 
 export function lastConsigneId(sessions) {

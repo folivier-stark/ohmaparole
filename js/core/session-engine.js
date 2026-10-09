@@ -61,6 +61,12 @@ export function resume(s, now) {
   return { ...s, status: 'running', pausedMs: s.pausedMs + (now - s.pausedAt), pausedAt: null };
 }
 
+/** Redémarre le pas courant à zéro (prise complète), en gardant le temps déjà pratiqué. */
+export function restartStep(s, now) {
+  if (s.status !== 'running') return s;
+  return { ...s, practicedMs: s.practicedMs + doneInStep(s, now), stepStartedAt: now, pausedMs: 0 };
+}
+
 export function skipBlock(s, now) {
   if (s.status === 'done') return s;
   const block = currentStep(s).block;

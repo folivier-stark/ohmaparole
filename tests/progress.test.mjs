@@ -63,18 +63,33 @@ test('homeStatus', () => {
   const y = homeStatus(one('2026-10-07'), '2026-10-09');
   assert.equal(y.yesterdayOff, true);
   assert.equal(y.comeback, false);
-  assert.equal(homeStatus(one('2026-10-05'), '2026-10-09').comeback, true);
+  const two = homeStatus(one('2026-10-06'), '2026-10-09');
+  assert.equal(two.daysWithout, 2);
+  assert.equal(two.yesterdayOff, true);
+  assert.equal(two.comeback, false);
+  const three = homeStatus(one('2026-10-05'), '2026-10-09');
+  assert.equal(three.comeback, true);
+  assert.equal(three.yesterdayOff, false);
+  assert.equal(homeStatus(one('2026-10-08'), '2026-10-09').yesterdayOff, false);
   assert.equal(homeStatus([], '2026-10-09').daysWithout, null);
   assert.equal(homeStatus([], '2026-10-09').comeback, false);
 });
 
 test('pendingFeedback : au moins 1 h après, au plus 3 jours', () => {
-  const rdv = S({ id: 'r', type: 'prerdv', dateKey: '2026-10-09', endedAt: 0, feedback: null });
+  const rdv = S({ id: 'r', type: 'prerdv', dateKey: '2026-10-09', endedAt: 0, feedback: null, practicedSec: 90 });
   assert.equal(pendingFeedback([rdv], 0.5 * H), null);
   assert.equal(pendingFeedback([rdv], 2 * H).id, 'r');
   assert.equal(pendingFeedback([{ ...rdv, feedback: 'non' }], 2 * H), null);
   assert.equal(pendingFeedback([{ ...rdv, feedbackSkipped: true }], 2 * H), null);
   assert.equal(pendingFeedback([rdv], 4 * D), null);
+});
+
+test('pendingFeedback : un RDV écourté mais réel (≥ 30 s) compte, pas un simple essai', () => {
+  const rdv = S({ id: 'r', type: 'prerdv', dateKey: '2026-10-09', endedAt: 0, feedback: null });
+  assert.equal(pendingFeedback([{ ...rdv, counted: false, practicedSec: 45 }], 2 * H).id, 'r');
+  assert.equal(pendingFeedback([{ ...rdv, counted: false, practicedSec: 30 }], 2 * H).id, 'r');
+  assert.equal(pendingFeedback([{ ...rdv, counted: true, practicedSec: 10 }], 2 * H), null);
+  assert.equal(pendingFeedback([{ ...rdv, counted: false }], 2 * H), null);
 });
 
 test('historyIds, lastBloc3, lastConsigneId', () => {
@@ -87,6 +102,14 @@ test('historyIds, lastBloc3, lastConsigneId', () => {
   assert.equal(lastBloc3(ss), 'posture');
   assert.equal(lastConsigneId(ss), 'fr.C03');
   assert.equal(lastBloc3([]), null);
+});
+
+test('lastBloc3 ignore les séances non comptées', () => {
+  const ss = [
+    S({ startedAt: 1, bloc3: 'ecoute' }),
+    S({ startedAt: 2, bloc3: 'posture', counted: false }),
+  ];
+  assert.equal(lastBloc3(ss), 'ecoute');
 });
 
 test('recentFeedback', () => {
