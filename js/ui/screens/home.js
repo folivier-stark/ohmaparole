@@ -7,7 +7,46 @@ import {
 import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv, RDV_EXIT_WINDOW_MS } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
+import { homeBubble, stablePick, motivationLines, stageFor, humeurFor, stade6PlusToday } from '../../core/louarn.js';
 import { createRdvCard } from '../components/rdv-card.js';
+import { createBulle, createFox } from '../components/fox.js';
+
+/**
+ * Louarn sur l'accueil (G §2.1-2.2, maquette §5.1) : le stade en pied à 96 px et sa bulle, à la place de
+ * la ligne de contexte. Carte affichée : il se tait. Mode discret ou aucune réplique : la ligne d'origine.
+ */
+async function louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now }) {
+  const daily = dailyCount(sessions);
+  const stage = stageFor(daily).id;
+  const plain = () => h('div', { class: 'lo-bulle-wrap' }, createFox({ stage, size: 96 }),
+    h('p', { class: 'context' }, homeLine({ ...status, dueMilestone: due, why, motivations: content.motivations, seed })));
+  const silent = () => createBulle({ texte: null, stage });
+  try {
+    const [discret, vus, jour, shownOn] = await Promise.all([
+      repo.getMeta('renardDiscret', false), repo.getMeta('louarn.vus', []),
+      repo.getMeta('louarn.jour', {}), repo.getMeta('louarn.stade6Jour', null),
+    ]);
+    const b = homeBubble({
+      cardShown: Boolean(card), discret, status, dueMilestone: due, dailyCount: daily, why, seed,
+      hour: new Date(now).getHours(), bloc3: nextBloc3(lastBloc3(sessions)),
+      stade6Plus: stade6PlusToday({ dailyCount: daily, shownOn, todayKey: today }),
+    });
+    if (card) return silent();
+    if (!b) return plain();
+    if (b.moment === 'pourquoi') return createBulle({ texte: `Ton pourquoi : « ${why} »`, stage });
+    const lines = content.louarn?.repliques;
+    if (!lines?.length) return plain();
+    const r = stablePick([...lines, ...motivationLines(content.motivations)], { ...b, dayKey: today, scope: 'accueil' },
+      { memo: jour?.accueil ?? null, vus: vus ?? [] });
+    if (!r.line) return plain();
+    if (r.changed) await Promise.all([repo.setMeta('louarn.vus', r.vus), repo.setMeta('louarn.jour', { ...jour, accueil: r.memo })]);
+    if (b.moment === 'stade' && shownOn == null) await repo.setMeta('louarn.stade6Jour', today);
+    return createBulle({ texte: r.line.texte, stage, humeur: humeurFor(b.moment) });
+  } catch (e) {
+    console.error(e);
+    return card ? silent() : plain();
+  }
+}
 
 /** « Je sors du RDV » : l'heure de sortie donne la durée réelle, puis les questions arrivent aussitôt. */
 function exitButton(exit, { repo, navigate }) {
@@ -61,11 +100,13 @@ export async function render(root, { repo, content, navigate }) {
         h('button', { class: 'btn-small', onclick: async () => { await repo.setMeta('lastWhyCheck', total); navigate('/settings'); } }, 'Je le reformule')));
   }
 
+  const louarn = await louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now });
+
   root.replaceChildren(h('div', { class: 'home' },
     h('header', { class: 'top' },
       h('a', { class: 'count', href: '#/progress' }, `${plural(monthCount(sessions, y, m), 'jour')} ce mois-ci ›`),
       h('a', { class: 'gear', href: '#/settings', 'aria-label': 'Réglages' }, '⚙')),
-    h('p', { class: 'context' }, homeLine({ ...status, dueMilestone: due, why, motivations: content.motivations, seed })),
+    louarn,
     card,
     backupDue(lastBackupAt, now, total) ? h('a', { class: 'backup-line', href: '#/settings' }, 'Pense à sauvegarder tes données ›') : null,
     h('div', { class: 'actions' },

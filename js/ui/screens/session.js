@@ -9,7 +9,9 @@ import {
   homeStatus, dailyCount, dueMilestone, referenceMilestones, historyIds, lastBloc3, lastConsigneId,
 } from '../../core/progress.js';
 import { BLOCKS, PAS_COMPTE, RDV_NO_RECORD } from '../../core/texts.js';
+import { rdvBubble, stablePick, humeurFor } from '../../core/louarn.js';
 import { createTimer } from '../components/timer.js';
+import { createBulle } from '../components/fox.js';
 import { startRecording } from '../../audio/recorder.js';
 import { createPlayer } from '../../audio/player.js';
 import { speak, stopSpeaking, canSpeak } from '../../platform/speech.js';
@@ -297,10 +299,22 @@ export async function render(root, { repo, content, navigate, params }) {
         note = h('div', { class: 'card' }, h('p', { class: 'label' }, 'À savoir'), h('p', {}, RDV_NO_RECORD));
       }
     } catch (e) { console.error(e); }
+    // Louarn, en portrait de 48 px sous le pourquoi, à la place de « Tu y vas. » (G §2.2) ; rien en mode discret.
+    let louarn = null;
+    try {
+      const [discret, vus, jour] = await Promise.all([
+        repo.getMeta('renardDiscret', false), repo.getMeta('louarn.vus', []), repo.getMeta('louarn.jour', {}),
+      ]);
+      const b = rdvBubble({ goal: record.goal, discret });
+      const r = b ? stablePick(content.louarn?.repliques ?? [], { ...b, dayKey: today, scope: record.id }, { memo: jour?.rdv ?? null, vus: vus ?? [] }) : null;
+      if (r?.changed) await Promise.all([repo.setMeta('louarn.vus', r.vus), repo.setMeta('louarn.jour', { ...jour, rdv: r.memo })]);
+      if (r?.line) louarn = createBulle({ texte: r.line.texte, stage: 'portrait', size: 48, humeur: humeurFor(b.moment) });
+    } catch (e) { console.error(e); }
     root.replaceChildren(h('div', { class: 'ready' },
-      h('p', { class: 'ready-title' }, 'Tu y vas.'),
+      louarn ? null : h('p', { class: 'ready-title' }, 'Tu y vas.'),
       record.goal ? h('p', { class: 'say small' }, record.goal) : null,
       why ? h('p', { class: 'why' }, `« ${why} »`) : null,
+      louarn,
       h('p', { class: 'muted' }, 'Je suis là pour comprendre, pas pour convaincre.'),
       note,
       h('button', { class: 'btn btn-rdv', onclick: () => navigate('/home', { replace: true }) }, 'J’y vais')));

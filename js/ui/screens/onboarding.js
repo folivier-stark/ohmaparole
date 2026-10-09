@@ -4,6 +4,8 @@ import { calendarUrl, alarmLabel } from '../../core/reminder.js';
 import { startRecording } from '../../audio/recorder.js';
 import { createPlayer } from '../../audio/player.js';
 import { buzz } from '../../platform/haptics.js';
+import { pickLine, humeurFor } from '../../core/louarn.js';
+import { createBulle } from '../components/fox.js';
 
 export async function render(root, { repo, content, navigate }) {
   const state = {
@@ -119,6 +121,12 @@ export async function render(root, { repo, content, navigate }) {
     idle();
   }
 
+  /** Fin de l'onboarding : une bulle unique, le Renardeau et sa réplique `stade:1` (G §2.3). */
+  function louarnStart() {
+    const line = pickLine(content.louarn?.repliques ?? [], { moment: 'stade', context: ['stade:1'] });
+    return line ? createBulle({ texte: line.texte, stage: 1, humeur: humeurFor('stade') }) : null;
+  }
+
   async function step4() {
     state.step = 4;
     player.stop();
@@ -147,6 +155,7 @@ export async function render(root, { repo, content, navigate }) {
       }, 'Ou : copier le nom pour une alarme'),
       note,
       h('p', { class: 'muted' }, 'Astuce : un appui long sur l’icône OhMaParole lance directement la séance.'),
+      louarnStart(),
       h('button', {
         class: 'btn btn-go',
         onclick: async () => {

@@ -124,3 +124,12 @@
 .lo-mini .lo-pierre-actuelle .lo-pierre-marque { margin: 0; }
 .lo-mini .lo-pierre-plus-tard .lo-pierre-marque { margin: 14px 0; }
 .lo-mini .lo-etapes { display: none; }
+
+/* ── Dans les écrans (phase 2b) ── */
+/* Accueil en mode discret, ou sans réplique : la ligne de contexte d'origine, à côté du renard. */
+.lo-bulle-wrap > .context { flex: 1; margin: 0; }
+/* Fin de séance : ligne secondaire (nouveau bloc, langues, stade suivant) et pastille de souvenir. */
+.lo-suite { margin: 0; text-align: center; }
+.lo-nouveau { justify-content: center; margin: 0; }
+/* Avant un RDV : l'écran est centré, la bulle se lit de gauche à droite. */
+.ready .lo-bulle { text-align: left; }

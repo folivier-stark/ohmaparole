@@ -1,18 +1,90 @@
 import { h } from '../dom.js';
-import { variant, FIN, FIN_PARTIELLE, milestoneMessage } from '../../core/texts.js';
+import { dayKey } from '../../core/dates.js';
+import { variant, plural, FIN, FIN_PARTIELLE, milestoneMessage } from '../../core/texts.js';
+import {
+  STAGES, sessionCounts, souvenirs, endCelebration, stablePick, pickLine, rememberLine, stageFor, humeurFor,
+} from '../../core/louarn.js';
 import { createPlayer } from '../../audio/player.js';
 import { createCompare } from '../components/compare.js';
+import { createBulle, createFox, createStageUp, reducedMotion } from '../components/fox.js';
+import { createMiniSentier } from '../components/parcours.js';
+
+/**
+ * Louarn à la fin d'une séance (G §2.2, §4.4, maquettes §5.3 et §5.4) : une seule bulle, à la place du
+ * message de fin. Montée de stade, souvenirs et thème se fêtent aussi en mode discret, sans animation.
+ * Sans réplique (mode discret, ou louarn.json absent) : le message de fin d'origine, en texte simple.
+ */
+async function louarnEnd({ repo, content, s, sessions, recs }) {
+  const fallback = s.completed ? variant(FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE;
+  const counts = sessionCounts(sessions, s);
+  const stage = stageFor(counts.newCount).id;
+  const [discret, fetes, vus, jour] = await Promise.all([
+    repo.getMeta('renardDiscret', false), repo.getMeta('louarn.fetes', []),
+    repo.getMeta('louarn.vus', []), repo.getMeta('louarn.jour', {}),
+  ]);
+  const c = endCelebration({
+    ...counts, session: s, souvenirs: souvenirs(sessions, recs), fetes: fetes ?? [],
+    todayKey: dayKey(Date.now()), hour: new Date().getHours(), discret,
+  });
+  const lines = content.louarn?.repliques ?? [];
+  const writes = [];
+  if (c.fetes.length !== (fetes ?? []).length) writes.push(repo.setMeta('louarn.fetes', c.fetes));
+
+  let seen = vus ?? [];
+  let texte = null;
+  if (c.bubble) {
+    const r = stablePick(lines, { ...c.bubble, dayKey: s.dateKey, scope: s.id }, { memo: jour?.fin ?? null, vus: seen });
+    if (r.line) texte = r.line.texte;
+    if (r.changed) { seen = r.vus; writes.push(repo.setMeta('louarn.jour', { ...jour, fin: r.memo })); }
+  }
+  // Fins de bloc : la réplique du nouveau bloc (ou des langues) sous la bulle de stade.
+  const second = c.secondary ? pickLine(lines, { ...c.secondary, dayKey: s.dateKey, recentIds: seen }) : null;
+  if (second) seen = rememberLine(seen, second.id);
+  if (seen !== vus) writes.push(repo.setMeta('louarn.vus', seen));
+  await Promise.all(writes);
+
+  const nodes = [];
+  if (c.stage) {
+    // Maquette §5.4 : le stade grandit, son nom, puis la bulle (pointe vers le renard).
+    nodes.push(h('div', { class: 'lo-bulle-wrap lo-bulle-colonne' },
+      createStageUp({ from: c.stage.from, to: c.stage.to, animate: !discret }),
+      h('p', { class: 'lo-stade-nom' }, STAGES[c.stage.to - 1].nom),
+      texte ? h('p', { class: 'lo-bulle' }, texte) : h('p', { class: 'end-msg' }, fallback)));
+  } else if (texte) {
+    nodes.push(createBulle({
+      texte, stage, humeur: humeurFor(c.bubble.moment), vertical: true, size: 120, animate: discret ? null : 'saut',
+    }));
+  } else {
+    nodes.push(h('div', { class: 'lo-bulle-wrap lo-bulle-colonne' },
+      createFox({ stage, humeur: 'content', size: 120 }),
+      h('p', { class: 'end-msg' }, fallback)));
+  }
+  if (second) nodes.push(h('p', { class: 'lo-suite' }, second.texte));
+  const appear = !discret && !reducedMotion();
+  for (const sv of c.celebrate) {
+    nodes.push(h('p', { class: appear ? 'lo-souvenir lo-nouveau lo-apparait' : 'lo-souvenir lo-nouveau' },
+      createFox({ stage: 'portrait', size: 32, humeur: 'content', decorative: true }),
+      h('span', {}, 'Nouveau souvenir : ', h('strong', {}, sv.nom))));
+  }
+  if (c.next) nodes.push(h('p', { class: 'lo-suite muted' }, `Prochain : ${c.next.stage.nom}, dans ${plural(c.next.remaining, 'séance')}`));
+  if (c.miniSentier) nodes.push(createMiniSentier({ dailyCount: counts.newCount, program: content.program, animate: !discret }));
+  return nodes;
+}
 
 export async function render(root, { repo, content, navigate, params }) {
   const s = await repo.getSession(params[0]);
   if (!s) { navigate('/home'); return; }
-  const recs = await repo.listRecordings();
+  const [recs, sessions] = await Promise.all([repo.listRecordings(), repo.listSessions()]);
   const mine = recs.filter((r) => r.sessionId === s.id);
   const cleanups = [];
-  const children = [
-    h('div', { class: 'dot-fill' }),
-    h('p', { class: 'end-msg' }, s.completed ? variant(FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE),
-  ];
+  let louarn;
+  try {
+    louarn = await louarnEnd({ repo, content, s, sessions, recs });
+  } catch (e) {
+    console.error(e);
+    louarn = [h('p', { class: 'end-msg' }, s.completed ? variant(FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE)];
+  }
+  const children = [h('div', { class: 'dot-fill' }), ...louarn];
 
   const take = mine.at(-1);
   if (take) {
