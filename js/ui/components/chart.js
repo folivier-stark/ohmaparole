@@ -1,6 +1,6 @@
 const NS = 'http://www.w3.org/2000/svg';
 const W = 320;
-const PAD = { l: 34, r: 10, t: 14, b: 22 };
+const PAD = { l: 46, r: 10, t: 14, b: 22 };
 
 function svg(tag, attrs, ...children) {
   const el = document.createElementNS(NS, tag);

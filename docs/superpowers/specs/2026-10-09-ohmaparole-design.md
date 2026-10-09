@@ -108,7 +108,7 @@ C'est le texte de `expert-contenu.md` §4.1 : présentation pro, puis « Les cha
 3. **Ta voix** : une frise J1 · 7 · 14 · 30 · 60… Pour chaque jalon atteint, **écoute A/B à l'aveugle** (J1 contre le jalon, dans un ordre au hasard) → « Laquelle est la plus claire ? » → révélation. La durée de chaque prise est affichée comme **indice**, jamais comme score.
 4. **En rendez-vous** : les réponses aux 6 derniers « On t'a fait répéter ? », sous forme de points, sans pourcentage.
 
-**Jamais affiché :** courbes, moyennes, record, score de diction.
+**Jamais affiché :** score de diction, record, série. Les courbes autorisées sont définies dans `2026-10-09-ohmaparole-tableau-design.md`.
 
 ## 7. Rappel quotidien
 
