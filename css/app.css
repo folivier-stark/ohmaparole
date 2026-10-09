@@ -150,6 +150,8 @@ textarea.field { min-height: 96px; resize: vertical; }
 .chart-line { fill: none; stroke: var(--primary); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
 .chart-area { fill: var(--primary); opacity: .12; }
 .chart-dot { fill: var(--primary); }
+.chart-point { fill: var(--text-2); }
+.chart-range { stroke: var(--text-2); stroke-width: 6; stroke-linecap: round; opacity: .3; }
 .chart-goal { stroke: var(--accent-text); stroke-width: 2; stroke-dasharray: 6 5; }
 .chart-axis { stroke: var(--border); stroke-width: 1; }
 .chart-label { fill: var(--text-2); font-family: var(--font-body); font-size: 11px; }

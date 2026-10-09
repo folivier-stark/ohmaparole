@@ -1,34 +1,35 @@
 import { h } from '../dom.js';
 import { dayKey, longDateFr, MONTHS_FR } from '../../core/dates.js';
 import { monthCount, totalCount, dailyCount, monthGrid, milestonesUpTo, nextMilestone } from '../../core/progress.js';
-import { programGoal, cumulativeSeries, goalProgress, axisSummary, rateTrend, recentGoals, TREND_MIN_ANSWERS } from '../../core/dashboard.js';
+import { programGoal, cumulativeSeries, goalProgress, axisSummary, rateTrend, monthlyBlocks, recentGoals, TREND_MIN_ANSWERS } from '../../core/dashboard.js';
 import { RDV_QUESTIONS, DONT_KNOW, rdvBoard } from '../../core/rdv.js';
-import { BLOCKS, plural, trendText } from '../../core/texts.js';
+import { BLOCKS, plural, trendText, frequencyText } from '../../core/texts.js';
 import { createCompare } from '../components/compare.js';
-import { cumulativeChart, shortDayMonth } from '../components/chart.js';
+import { cumulativeChart, monthlyPoints, shortDayMonth } from '../components/chart.js';
 
 const AXIS_CARDS = [
-  { key: 'diction', title: 'Diction et élocution', tagline: BLOCKS.articulation.tagline, measure: 'prises « Clair »', voice: true, kind: 'Ton ressenti.', empty: 'Réponds à « Ta prise ? » à la fin de l’articulation.' },
-  { key: 'ecoute', title: 'Écoute', tagline: BLOCKS.ecoute.tagline, measure: 'détails cachés repérés', kind: 'Ton ressenti.', empty: 'Réponds à « Repéré ? » après chaque écoute.' },
-  { key: 'posture', title: 'Posture et présence', tagline: BLOCKS.posture.tagline, measure: 'séances où tu t’es senti posé', kind: 'Ton ressenti.', empty: 'Réponds à « Tu t’es senti posé ? » à la fin du bloc posture.' },
+  { key: 'diction', title: 'Diction et élocution', tagline: BLOCKS.articulation.tagline, measure: 'Prises « Clair »', kind: 'Ton ressenti.', empty: 'Réponds à « Ta prise ? » à la fin de l’articulation.' },
+  { key: 'ecoute', title: 'Écoute', tagline: BLOCKS.ecoute.tagline, measure: 'Détails cachés repérés', kind: 'Ton ressenti.', empty: 'Réponds à « Repéré ? » après chaque écoute.' },
+  { key: 'posture', title: 'Posture et présence', tagline: BLOCKS.posture.tagline, measure: 'Séances où tu t’es senti posé', kind: 'Ton ressenti.', empty: 'Réponds à « Tu t’es senti posé ? » à la fin du bloc posture.' },
 ];
 const RESULT = { oui: 'Atteint', partie: 'En partie', non: 'Pas cette fois', nsp: 'Je ne sais pas' };
 const SUITE = Object.fromEntries([...RDV_QUESTIONS.suite.options, DONT_KNOW].map((o) => [o.value, o.label]));
 
-/** « Environ 6 sur 10 prises « Clair » (entre 4 et 8) » : jamais de pourcentage, toujours la fourchette. */
-const freqLine = (freq, measure) => h('p', {},
-  h('strong', {}, `Environ ${freq.approx} sur 10`), ` ${measure} (entre ${freq.low} et ${freq.high})`);
+/** « Prises « Clair » : environ 6 sur 10 (entre 4 et 8) » : jamais de pourcentage, toujours la fourchette. */
+const freqLine = (freq, measure) => h('p', {}, `${measure} : `, h('strong', {}, frequencyText(freq)));
 
 function axisCard(sessions, today, a) {
   const sum = axisSummary(sessions, a.key, today);
   const state = rateTrend(sessions, a.key, today);
+  const blocks = monthlyBlocks(sessions, a.key, today);
   return h('div', { class: 'card axis' },
     h('h3', {}, a.title),
     h('p', { class: 'muted small' }, a.tagline),
     sum.total
       ? [
         sum.freq ? freqLine(sum.freq, a.measure) : h('p', {}, 'Pas de réponse ces 4 dernières semaines.'),
-        h('p', { class: 'trend' }, trendText(state, { voice: a.voice, missing: TREND_MIN_ANSWERS - sum.total })),
+        h('p', { class: 'trend' }, trendText(state, { missing: TREND_MIN_ANSWERS - sum.total })),
+        blocks.length ? monthlyPoints(blocks) : null,
         h('p', { class: 'muted small' }, sum.n ? `Sur 4 semaines, ${plural(sum.n, 'réponse')}. ${a.kind}` : a.kind),
       ]
       : h('p', { class: 'muted' }, a.empty));

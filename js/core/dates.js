@@ -32,6 +32,11 @@ export function weekdayMon0(key) {
   return (new Date(keyToUTC(key)).getUTCDay() + 6) % 7;
 }
 
+/** Le dimanche de ce jour, ou le dimanche qui le précède (jour des contrôles de tendance). */
+export function sundayOnOrBefore(key) {
+  return addDays(key, -((weekdayMon0(key) + 1) % 7));
+}
+
 export function monthKeyPrefix(year, month) {
   return `${year}-${pad(month)}-`;
 }

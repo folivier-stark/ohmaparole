@@ -35,15 +35,16 @@
 
 ## 3. Le tableau de bord honnête (M §2.6, §4)
 
-- **Taux déclaratifs** (diction « Clair », écoute « Repéré », posture « Posé », RDV) : on affiche « **environ X sur 10 (entre a et b)** », où la fourchette est l'intervalle de Wilson à 95 % arrondi à l'entier sur 10. Jamais de pourcentage nu.
+- **Taux déclaratifs** (diction « Clair », écoute « Repéré », posture « Posé », RDV) : on affiche « **environ X sur 10 (entre a et b)** », où la fourchette est l'intervalle de Wilson à 95 % arrondi à l'entier sur 10. Jamais de pourcentage nu. **Jamais « 10 sur 10 » ni « 0 sur 10 »** : on écrit « environ 9 sur 10 ou plus » et « environ 1 sur 10 ou moins ».
+- **Courbe par axe** (diction, écoute, posture ; demande de Fred) : blocs de **28 jours consécutifs** à partir du lundi de la première semaine qui a des réponses. Un point par bloc à « environ X sur 10 », la fourchette de Wilson en barre verticale grise, un axe gradué « sur 10 », les étiquettes Mois 1, Mois 2… **Seuls les blocs terminés** (donc figés) ayant au moins 8 réponses sont tracés, plus le bloc en cours, « Ces 4 semaines », s'il a lui aussi au moins 8 réponses. Pas de ligne entre les points, pas de flèche, une couleur neutre. Elle remplace les mini-barres hebdomadaires, qui montraient les creux d'une semaine à l'autre. La carte RDV garde « x sur y » (§5).
 - **États par axe, et seulement ces 4 :**
-  - « On apprend ta voix » : en calibrage ;
+  - « On apprend tes repères » : en calibrage, pour les taux déclaratifs (« On apprend ta voix » est réservé à la calibration acoustique, §4) ;
   - « Trop tôt pour trancher » ;
   - « Ça bouge dans le bon sens » : tendance probable ;
   - « Progrès confirmé ».
 
   Le vocabulaire est celui de M §4.2, avec les **mots interdits** de M §4.2 et de P §7.3.
-- **Tendance probable sur un taux :** P(taux récent > taux ancien) ≥ 0,90, en bêta-binomial avec a priori uniforme. La condition doit tenir **2 semaines de suite**, avec **au moins 8 réponses de chaque côté**.
+- **Tendance probable sur un taux :** P(taux récent > taux ancien) ≥ 0,90, en bêta-binomial avec a priori uniforme, les 28 jours finissant au contrôle contre les 28 jours d'avant. Le contrôle a lieu **chaque dimanche**. La condition doit tenir **3 dimanches de suite** (environ 9 % de fausses alertes, contre environ 21 % avec 2), avec **au moins 8 réponses de chaque côté à chaque contrôle**. Une fois atteinte, la tendance est **maintenue jusqu'au bilan suivant** : elle ne s'éteint jamais entre deux bilans. Avant le premier bilan (phase 5), les contrôles partent de la première réponse de l'axe.
 - **« Progrès confirmé » ne se calcule qu'aux bilans** (§7), et jamais sur une auto-évaluation seule (M §1.4).
 - **Au quotidien et à la semaine, aucune baisse n'est affichée.** Au bilan, une baisse est dite **sans couleur**, avec un contrôle 5 séances plus tard (M §4.4).
 

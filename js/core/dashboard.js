@@ -1,4 +1,4 @@
-import { addDays, diffDays } from './dates.js';
+import { addDays, diffDays, weekdayMon0, sundayOnOrBefore } from './dates.js';
 import { naturalFrequency, probGreater } from './stats.js';
 
 export const GOAL_SESSIONS = 72;
@@ -13,20 +13,29 @@ export function programGoal(program) {
  * values : réponses possibles (jeux distincts pour les axes lus dans `ratings`).
  * positive : réponses qui comptent comme une réussite.
  * « nsp » (Je ne sais pas) est une vraie réponse (eval-rdv.md §1.1) : elle compte dans le total, jamais en réussite.
+ * Exception : « On t'a fait répéter ? » n'avait pas cette option en V1, « nsp » reste hors de son total.
  */
 export const AXES = {
   diction: { source: 'ratings', values: ['clair', 'moyen', 'brouillon'], positive: ['clair'] },
   ecoute: { source: 'ratings', values: ['oui', 'non'], positive: ['oui'] },
   posture: { source: 'ratings', values: ['pose', 'unpeu', 'pasencore'], positive: ['pose'] },
-  rdv: { source: 'feedback', values: ['non', 'une', 'plusieurs', 'nsp'], positive: ['non'] },
+  rdv: { source: 'feedback', values: ['non', 'une', 'plusieurs'], positive: ['non'] },
   objectif: { source: 'goalReached', values: ['oui', 'partie', 'non', 'nsp'], positive: ['oui'] },
 };
 
-/** Règle de tendance (eval-methodologie.md §2.6) : P ≥ 0,90, deux semaines de suite, au moins 8 réponses de chaque côté. */
+/**
+ * Règle de tendance (eval-methodologie.md §2.6, spec V2 §3) : contrôle chaque dimanche, P ≥ 0,90
+ * trois dimanches de suite, au moins 8 réponses de chaque côté à chaque contrôle.
+ */
 export const TREND_MIN_ANSWERS = 8;
 export const TREND_MIN_PROB = 0.9;
+export const TREND_RUN = 3;
+/** Blocs de la courbe par axe : 28 jours consécutifs, au moins 8 réponses. */
+export const BLOCK_DAYS = 28;
+export const BLOCK_MIN_ANSWERS = 8;
 
 const isDailyCounted = (s) => s.counted === true && (s.type === 'daily' || s.type === 'comeback');
+const weekOf = (key) => addDays(key, -weekdayMon0(key));
 
 function answers(session, axis) {
   const { source, values } = AXES[axis];
@@ -94,14 +103,48 @@ export function trendCheck(sessions, axis, refKey) {
   return probGreater(recent.k, recent.n, before.k, before.n);
 }
 
+/** Premier jour où l'axe a une réponse (jusqu'à toKey), ou null. */
+function firstAnswerKey(sessions, axis, toKey) {
+  return sessions
+    .filter((s) => s.dateKey <= toKey && answers(s, axis).length)
+    .map((s) => s.dateKey)
+    .sort()[0] ?? null;
+}
+
 /**
- * État d'un taux : 'calibrage' (moins de 8 réponses au total), 'probable' (contrôle de la semaine courante
- * ET de la précédente à P ≥ 0,90) ou 'tot' (trop tôt pour trancher). Aucune baisse n'existe ici.
+ * État d'un taux : 'calibrage' (moins de 8 réponses au total), 'probable' ou 'tot' (trop tôt pour trancher).
+ * Les contrôles ont lieu les dimanches, depuis sinceKey (le dernier bilan ; d'ici la phase 5, la première
+ * réponse de l'axe). 'probable' dès que 3 dimanches de suite donnent P ≥ 0,90, puis l'état est MAINTENU
+ * jusqu'au bilan suivant : il ne s'éteint jamais entre deux bilans. Aucune baisse n'existe ici.
  */
-export function rateTrend(sessions, axis, todayKey) {
+export function rateTrend(sessions, axis, todayKey, { sinceKey = null } = {}) {
   if (countBetween(sessions, axis, null, todayKey).n < TREND_MIN_ANSWERS) return 'calibrage';
-  const passes = (refKey) => (trendCheck(sessions, axis, refKey) ?? 0) >= TREND_MIN_PROB;
-  return passes(todayKey) && passes(addDays(todayKey, -7)) ? 'probable' : 'tot';
+  const fromKey = sinceKey ?? firstAnswerKey(sessions, axis, todayKey);
+  let run = 0;
+  for (let sunday = sundayOnOrBefore(addDays(fromKey, 6)); sunday <= todayKey; sunday = addDays(sunday, 7)) {
+    run = (trendCheck(sessions, axis, sunday) ?? 0) >= TREND_MIN_PROB ? run + 1 : 0;
+    if (run >= TREND_RUN) return 'probable';
+  }
+  return 'tot';
+}
+
+/**
+ * Courbe par axe : blocs de 28 jours consécutifs à partir du lundi de la première semaine avec réponses.
+ * Seuls les blocs terminés (figés) ayant au moins 8 réponses sont gardés, plus le bloc en cours,
+ * « Ces 4 semaines », s'il a lui aussi au moins 8 réponses.
+ */
+export function monthlyBlocks(sessions, axis, todayKey) {
+  const first = firstAnswerKey(sessions, axis, todayKey);
+  if (!first) return [];
+  const out = [];
+  for (let fromKey = weekOf(first), i = 1; fromKey <= todayKey; fromKey = addDays(fromKey, BLOCK_DAYS), i++) {
+    const toKey = addDays(fromKey, BLOCK_DAYS - 1);
+    const current = toKey >= todayKey;
+    const { k, n } = countBetween(sessions, axis, fromKey, current ? todayKey : toKey);
+    if (n < BLOCK_MIN_ANSWERS) continue;
+    out.push({ label: current ? 'Ces 4 semaines' : `Mois ${i}`, fromKey, toKey, k, n, freq: naturalFrequency(k, n), current });
+  }
+  return out;
 }
 
 /** Derniers objectifs de RDV saisis, du plus récent au plus ancien, avec leur résultat et leur suite. */

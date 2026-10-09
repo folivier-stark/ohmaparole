@@ -40,10 +40,19 @@ export const TREND_TEXT = {
 /** Rappelé une fois, à la fin de la première routine « Avant un RDV » (eval-rdv.md §4.5). */
 export const RDV_NO_RECORD = 'N’enregistre jamais un vrai rendez-vous : sans l’accord de la personne, c’est un délit (article 226-1 du Code pénal). L’appli, elle, ne garde que l’heure de ta sortie.';
 
-/** voice : l'axe porte sur la voix (diction). missing : réponses qui manquent avant de sortir du calibrage. */
-export function trendText(state, { voice = false, missing = 0 } = {}) {
-  if (state === 'calibrage') return `${voice ? 'On apprend ta voix.' : 'On apprend.'} Encore ${plural(missing, 'réponse')}.`;
+/**
+ * missing : réponses qui manquent avant de sortir du calibrage. « On apprend ta voix » est réservé
+ * à la calibration acoustique : les taux déclaratifs disent « On apprend tes repères ».
+ */
+export function trendText(state, { missing = 0 } = {}) {
+  if (state === 'calibrage') return `On apprend tes repères. Encore ${plural(missing, 'réponse')}.`;
   return TREND_TEXT[state] ?? TREND_TEXT.tot;
+}
+
+/** « environ 6 sur 10 (entre 4 et 8) », ou « environ 9 sur 10 ou plus » : jamais 10 ni 0 sur 10. */
+export function frequencyText({ approx, low, high, bound }) {
+  const edge = bound === 'plus' ? ' ou plus' : bound === 'moins' ? ' ou moins' : '';
+  return `environ ${approx} sur 10${edge} (entre ${low} et ${high})`;
 }
 
 export function homeLine({ doneToday, comeback, yesterdayOff, dueMilestone, why, motivations, seed }) {

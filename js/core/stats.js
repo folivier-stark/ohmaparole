@@ -14,11 +14,21 @@ export function wilson(k, n, z = 1.96) {
   };
 }
 
-/** Fréquence naturelle « environ X sur 10 (entre a et b) », arrondie à l'entier. null sans réponse. */
+/**
+ * Fréquence naturelle « environ X sur 10 (entre a et b) », arrondie à l'entier. null sans réponse.
+ * Jamais 10 ni 0 sur 10 : l'arrondi est borné à 9 (bound 'plus' : « 9 ou plus ») ou à 1 (bound 'moins').
+ */
 export function naturalFrequency(k, n) {
   if (!n) return null;
   const w = wilson(k, n);
-  return { approx: Math.round((10 * k) / n), low: Math.round(10 * w.low), high: Math.round(10 * w.high) };
+  const rounded = Math.round((10 * k) / n);
+  const bound = rounded >= 10 ? 'plus' : rounded <= 0 ? 'moins' : null;
+  const approx = Math.min(9, Math.max(1, rounded));
+  let low = Math.round(10 * w.low);
+  let high = Math.round(10 * w.high);
+  if (bound === 'plus') low = Math.min(low, approx);
+  if (bound === 'moins') high = Math.max(high, approx);
+  return { approx, low, high, bound };
 }
 
 // ln((m)!) pour m entier, par somme cumulée de logarithmes : exact à la précision du double près.

@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Paris';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dayKey, diffDays, addDays, daysInMonth, weekdayMon0, MONTHS_FR, longDateFr } from '../js/core/dates.js';
+import { dayKey, diffDays, addDays, daysInMonth, weekdayMon0, MONTHS_FR, longDateFr, sundayOnOrBefore } from '../js/core/dates.js';
 
 test("dayKey utilise l'heure locale (00h30 à Paris = jour suivant en UTC)", () => {
   assert.equal(dayKey(Date.UTC(2026, 9, 9, 22, 30)), '2026-10-10');
@@ -37,4 +37,11 @@ test('MONTHS_FR', () => {
 test('longDateFr', () => {
   assert.equal(longDateFr('2026-11-29'), '29 novembre 2026');
   assert.equal(longDateFr('2027-01-01'), '1 janvier 2027');
+});
+
+test('sundayOnOrBefore : le dimanche du jour, ou le dimanche précédent', () => {
+  assert.equal(sundayOnOrBefore('2026-10-11'), '2026-10-11');
+  assert.equal(sundayOnOrBefore('2026-10-12'), '2026-10-11');
+  assert.equal(sundayOnOrBefore('2026-10-17'), '2026-10-11');
+  assert.equal(sundayOnOrBefore('2027-01-02'), '2026-12-27');
 });

@@ -35,12 +35,23 @@ test('wilson : bornes dans [0, 1], z réglable, aucune information sans réponse
 });
 
 test('naturalFrequency : « environ X sur 10 (entre a et b) », arrondi à l’entier', () => {
-  assert.deepEqual(naturalFrequency(8, 13), { approx: 6, low: 4, high: 8 });
-  assert.deepEqual(naturalFrequency(0, 10), { approx: 0, low: 0, high: 3 });
-  assert.deepEqual(naturalFrequency(10, 10), { approx: 10, low: 7, high: 10 });
-  assert.deepEqual(naturalFrequency(3, 4), { approx: 8, low: 3, high: 10 });
-  assert.deepEqual(naturalFrequency(13, 20), { approx: 7, low: 4, high: 8 });
+  assert.deepEqual(naturalFrequency(8, 13), { approx: 6, low: 4, high: 8, bound: null });
+  assert.deepEqual(naturalFrequency(3, 4), { approx: 8, low: 3, high: 10, bound: null });
+  assert.deepEqual(naturalFrequency(13, 20), { approx: 7, low: 4, high: 8, bound: null });
   assert.equal(naturalFrequency(0, 0), null);
+});
+
+test('naturalFrequency : jamais 10 sur 10 ni 0 sur 10, mais « 9 ou plus » et « 1 ou moins »', () => {
+  assert.deepEqual(naturalFrequency(10, 10), { approx: 9, low: 7, high: 10, bound: 'plus' });
+  assert.deepEqual(naturalFrequency(19, 20), { approx: 9, low: 8, high: 10, bound: 'plus' }); // 9,5 arrondi à 10
+  assert.deepEqual(naturalFrequency(0, 10), { approx: 1, low: 0, high: 3, bound: 'moins' });
+  assert.deepEqual(naturalFrequency(1, 25), { approx: 1, low: 0, high: 2, bound: 'moins' }); // 0,4 arrondi à 0
+  assert.deepEqual(naturalFrequency(1, 10), { approx: 1, low: 0, high: 4, bound: null });
+  // La fourchette reste cohérente avec la borne : jamais « entre 10 et 10 ».
+  const many = naturalFrequency(120, 120);
+  assert.equal(many.approx, 9);
+  assert.ok(many.low <= 9);
+  assert.equal(naturalFrequency(0, 120).high >= 1, true);
 });
 
 // P(p_new > p_old), lois bêta à a priori uniforme. Références : somme exacte en fractions
