@@ -78,6 +78,45 @@ export function reading(groups, { leadSec = 2, tailSec = 1, noiseRms = 0.001, am
   return { samples: buf, truth };
 }
 
+/**
+ * Ajoute un transitoire qui n'est pas de la parole, à `at` secondes :
+ * - 'impulse' : clic large bande de 3 ms, décroissant ;
+ * - 'thump'   : tap sur l'écran ou choc contre la table, 30 ms, grave (150 Hz) avec un peu de bruit ;
+ * - 'buzz'    : vibreur du téléphone, 120 ms à 175 Hz.
+ */
+export function addClick(buf, { kind = 'impulse', at, amp = 0.3, sr = SR, seed = 5 }) {
+  const rand = rng(seed);
+  const g = () => rand() * 2 - 1;
+  const i0 = Math.round(at * sr);
+  const put = (k, v) => { if (i0 + k >= 0 && i0 + k < buf.length) buf[i0 + k] += v; };
+  if (kind === 'impulse') {
+    const n = Math.round(0.003 * sr);
+    for (let k = 0; k < n; k++) put(k, amp * g() * Math.exp(-k / (n / 4)));
+  } else if (kind === 'thump') {
+    const n = Math.round(0.03 * sr);
+    for (let k = 0; k < n; k++) {
+      put(k, amp * Math.sin((2 * Math.PI * 150 * k) / sr) * Math.exp(-k / (n / 3)) + 0.3 * amp * g() * Math.exp(-k / (n / 10)));
+    }
+  } else if (kind === 'buzz') {
+    const n = Math.round(0.12 * sr);
+    const ramp = 0.01 * sr;
+    for (let k = 0; k < n; k++) {
+      const e = Math.min(1, k / ramp, (n - k) / ramp);
+      put(k, amp * e * (Math.sin((2 * Math.PI * 175 * k) / sr) + 0.3 * Math.sin((2 * Math.PI * 350 * k) / sr)));
+    }
+  } else {
+    throw new RangeError(`Transitoire inconnu : ${kind}`);
+  }
+  return buf;
+}
+
+/** Copie d'un signal multipliée par un gain linéaire. */
+export function scaled(buf, gain) {
+  const out = new Float32Array(buf.length);
+  for (let i = 0; i < buf.length; i++) out[i] = buf[i] * gain;
+  return out;
+}
+
 /** Écrête un signal dans [-1, 1], comme un convertisseur saturé. */
 export function clip(buf) {
   for (let i = 0; i < buf.length; i++) buf[i] = Math.max(-1, Math.min(1, buf[i]));
