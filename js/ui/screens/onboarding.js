@@ -31,7 +31,7 @@ export async function render(root, { repo, content: initial, navigate, applyProf
       h('h1', {}, '5 minutes par jour. Pas plus.'),
       h('p', {}, 'Tu parles, tu t’écoutes, tu avances.'),
       h('p', {}, 'Un jour sans ne casse rien. Une seule règle : jamais deux jours d’affilée sans.'),
-      h('p', { class: 'muted' }, 'On commence par 3 réglages, moins de 2 minutes.'),
+      h('p', { class: 'muted' }, 'On commence par 4 réglages, moins de 2 minutes.'),
       h('button', { class: 'btn btn-go', onclick: stepProfil }, 'Commencer'),
     );
   }
