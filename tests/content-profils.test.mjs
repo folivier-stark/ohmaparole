@@ -106,7 +106,7 @@ test('extras neutres : référence REFQ1 de 84 syllabes, objectifs du moment, mo
   assert.equal(extrasQ.pourquoiExemples.length, 3);
   assert.equal(extrasQ.objectifsMoment.length, 3);
   assert.ok(extrasQ.objectifDefaut);
-  assert.deepEqual(Object.keys(extrasQ.pourquoi), ['fr.A10', 'fr.A12', 'fr.A14']);
+  assert.deepEqual(Object.keys(extrasQ.pourquoi), ['fr.E01', 'fr.E10', 'fr.A10', 'fr.A12', 'fr.A14']);
 });
 
 test('pack Mesure non pro : volumes, syllabes, faits clés', () => {

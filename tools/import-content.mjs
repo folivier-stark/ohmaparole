@@ -142,8 +142,11 @@ const mesureQ = jsonAfter(mesureMd, 'mesure', MESURE_Q);
 writeFileSync('content/fr/mesure-quotidien.json', `${JSON.stringify({ lang: LANG, source: MESURE_Q, ...mesureQ }, null, 2)}\n`);
 console.log(`Pack Mesure non pro écrit dans content/fr/mesure-quotidien.json (${mesureQ.textesInedits.length} textes inédits)`);
 
-// Le « pourquoi » des virelangues gardés : neutre pour A10, A12 et A14 (les autres le sont déjà).
+// Le « pourquoi » neutre des échauffements E01 à E12 et des virelangues A01 à A14, relus un par un : seuls
+// E01 (rendez-vous), E10 (métier), A10 (métier), A12 (numérique) et A14 (rendez-vous) en parlaient.
 const POURQUOI_NEUTRES = {
+  'fr.E01': 'Une longue expiration avant de parler calme le débit dès la première phrase.',
+  'fr.E10': 'C’est l’agilité dont tu as besoin pour passer les mots longs sans buter.',
   'fr.A10': 'Les mots longs se travaillent : à l’oral, ce sont eux qu’on avale en premier.',
   'fr.A12': 'Un groupe de consonnes bien passé, et toute la phrase devient plus claire.',
   'fr.A14': 'Enchaîner sans trébucher, c’est garder l’attention de ceux qui t’écoutent.',

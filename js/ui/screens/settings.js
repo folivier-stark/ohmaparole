@@ -7,7 +7,6 @@ import { setHapticsEnabled } from '../../platform/haptics.js';
 import { storageStatus } from '../../platform/storage.js';
 import { APP_VERSION } from '../../version.js';
 import { createFox } from '../components/fox.js';
-import { scheduleReanalysis } from '../../audio/voice-measure.js';
 import { PROFIL_CHOICES, PROFIL_CHANGE_WARNING, profilLine } from '../../core/profil.js';
 
 const section = (title, ...children) => h('section', {}, h('h2', {}, title), children);
@@ -36,7 +35,7 @@ function profilSection({ content, applyProfil, navigate }) {
         onclick: async (e) => {
           e.currentTarget.disabled = true;
           try {
-            await applyProfil(c.value, { change: true });
+            await applyProfil(c.value);
             navigate('/settings', { replace: true });
           } catch (err) {
             console.error(err);
@@ -78,8 +77,8 @@ export async function render(root, { repo, content, applyProfil, navigate }) {
         if (!confirm(`${p.data.sessions.length} séances et ${p.data.recordings.length} enregistrements : importer ?`)) return;
         const r = await importBackup(p);
         backupInfo.textContent = `Restauré : ${r.sessions} séances, ${r.recordings} enregistrements.`;
-        // Une sauvegarde v1 n'a pas de mesures de la voix : elles se recalculent depuis les Blobs.
-        scheduleReanalysis({ repo, syllables: content.referencePro.syllabes, delayMs: 0, syllablesById: content.syllablesById });
+        // Le plus sûr : on repart d'un démarrage propre (profil restauré, contenu, réanalyse des mesures de la voix).
+        setTimeout(() => location.reload(), 800);
       } catch (e) {
         backupInfo.textContent = e.message;
       }

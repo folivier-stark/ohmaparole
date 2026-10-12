@@ -1,7 +1,7 @@
 import { defineRoutes, startRouter } from './router.js';
 import * as repo from './data/repo.js';
 import { loadContent } from './data/content.js';
-import { isProfil } from './core/profil.js';
+import { isProfil, isNeutral, neutralGoals } from './core/profil.js';
 import { setSpeechEnabled } from './platform/speech.js';
 import { setHapticsEnabled } from './platform/haptics.js';
 import { requestPersist } from './platform/storage.js';
@@ -32,11 +32,6 @@ function registerServiceWorker() {
   }).catch(() => {});
 }
 
-/** Le contenu du profil, avec la date du dernier changement (la mesure de la voix repart de là). */
-async function profilContent(profil) {
-  const [content, since] = await Promise.all([loadContent('fr', profil), repo.getMeta('profilDepuis', 0)]);
-  return { ...content, profilSince: Number(since) || 0 };
-}
 
 /** Réanalyse des prises sans mesure à l'algorithme courant (syllabes de tous les textes, quel que soit le profil). */
 const reanalysisOptions = (content) => ({ repo, syllables: content.referencePro.syllabes, syllablesById: content.syllablesById });
@@ -47,20 +42,28 @@ async function boot() {
   const profil = isProfil(stored) ? stored : 'pro';
   const ctx = {
     repo,
-    content: await profilContent(profil),
+    content: await loadContent('fr', profil),
     // Utilisateur d'avant les profils : la carte « Ton profil ? » de l'accueil bloque jusqu'à sa réponse.
     needsProfil: Boolean(onboarded) && !isProfil(stored),
     /**
-     * Enregistre le profil et recharge le contenu. change : changement depuis les Réglages, la mesure de la
-     * voix repart de zéro (meta profilDepuis). Renvoie le nouveau contenu.
+     * Enregistre le profil et recharge le contenu (premier lancement, carte de l'accueil, Réglages). Un profil
+     * jamais utilisé repart de zéro, un profil déjà utilisé retrouve sa mesure : tout est filtré par le champ
+     * `profil` des lignes. Profil neutre : un objectif ou un pourquoi resté sur l'objectif pro par défaut
+     * prend la valeur neutre. Renvoie le nouveau contenu.
      */
-    async applyProfil(next, { change = false } = {}) {
+    async applyProfil(next) {
       if (!isProfil(next)) throw new RangeError(`Profil inconnu : ${next}`);
+      const content = await loadContent('fr', next);
+      if (isNeutral(next)) {
+        const [objective, why] = await Promise.all([repo.getMeta('objective', null), repo.getMeta('why', null)]);
+        const goals = neutralGoals({ objective, why }, content.objectifDefautPro, content.extras.objectifDefaut);
+        if (goals.objective !== objective) await repo.setMeta('objective', goals.objective);
+        if (goals.why !== why) await repo.setMeta('why', goals.why);
+      }
       await repo.setMeta('profil', next);
-      if (change) await repo.setMeta('profilDepuis', Date.now());
-      ctx.content = await profilContent(next);
+      ctx.content = content;
       ctx.needsProfil = false;
-      return ctx.content;
+      return content;
     },
   };
   const prefs = await repo.getSettings();

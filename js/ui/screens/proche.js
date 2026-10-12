@@ -17,7 +17,7 @@ const QUESTIONS = [
 export async function render(root, { repo, content, navigate, params }) {
   const s = await repo.getSession(params[0]);
   if (!s?.bilan || s.bilan.kind !== 'bilan') { navigate('/home', { replace: true }); return; }
-  const mine = (rows) => ofProfil(rows, content.profil, content.profilSince);
+  const mine = (rows) => ofProfil(rows, content.profil);
   const neutral = isNeutral(content.profil);
   const [sessions, recordings] = await Promise.all([repo.listSessions(), repo.listRecordings().then(mine)]);
   const draft = s.bilan.procheDraft ?? (() => {
@@ -25,7 +25,10 @@ export async function render(root, { repo, content, navigate, params }) {
     const bilans = bilansDone(mine(sessions));
     return { seed, pairs: prochePairs({ recordings, bilans, current: s, seed, refId: content.reference.id }) };
   })();
-  if (!s.bilan.procheDraft) await repo.saveSession({ ...s, bilan: { ...s.bilan, procheDraft: draft } });
+  // Brouillon gardé seulement s'il y a de quoi écouter (5 paires réelles) : sinon, rien n'est écrit.
+  if (!s.bilan.procheDraft && draft.pairs.filter((p) => !p.leurre).length >= 5) {
+    await repo.saveSession({ ...s, bilan: { ...s.bilan, procheDraft: draft } });
+  }
   const player = createPlayer();
   const answers = {};
   let i = 0;
@@ -84,7 +87,7 @@ export async function render(root, { repo, content, navigate, params }) {
     const all = ss.map((x) => (x.id === updated.id ? updated : x));
     updated.bilan.report = buildBilanReport({
       session: updated, sessions: all, recordings: mine(recs), measures: mine(ms), todayKey: s.dateKey, lines: content.mesure ?? {},
-      profil: content.profil, since: content.profilSince,
+      profil: content.profil,
     });
     await repo.saveSession(updated);
     screen(

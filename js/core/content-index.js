@@ -55,7 +55,10 @@ const NEUTRAL_EXTRAS = ['reference', 'objectifDefaut', 'pourquoiExemples', 'obje
 export function profileContent({ program, exercises, extras, louarn = null, mesure = null, neutral = {} }, profil = 'pro') {
   const pro = { reference: extras.reference, mesure };
   if (!isNeutral(profil)) {
-    return { ...indexContent({ program, exercises, extras }), louarn, mesure, profil: 'pro', referencePro: extras.reference, syllablesById: syllablesOf(pro) };
+    return {
+      ...indexContent({ program, exercises, extras }), louarn, mesure, profil: 'pro',
+      referencePro: extras.reference, objectifDefautPro: extras.objectifDefaut, syllablesById: syllablesOf(pro),
+    };
   }
   const prog = neutral.programs?.[profil];
   if (!prog || !neutral.extras) throw new Error(`Contenu du profil ${profil} introuvable`);
@@ -73,6 +76,7 @@ export function profileContent({ program, exercises, extras, louarn = null, mesu
     mesure: neutral.mesure ?? null,
     profil,
     referencePro: extras.reference,
+    objectifDefautPro: extras.objectifDefaut,
     syllablesById: syllablesOf(pro, { reference: ne.reference, mesure: neutral.mesure }),
   };
 }
