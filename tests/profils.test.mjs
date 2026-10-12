@@ -278,3 +278,16 @@ test('rapport de bilan non pro : axe « Dans tes moments importants », réalism
   assert.equal(pro.realisme, REALISME);
   assert.equal(pro.axes.find((a) => a.key === 'rdv').label, 'En RDV');
 });
+
+test('les lignes de mesure portent le profil de leur prise ; une prise d’avant n’en a pas (pro)', async () => {
+  const { measureRows } = await import('../js/core/voice-report.js');
+  const { spontaneRows } = await import('../js/core/weekly-point.js');
+  const rec = { id: 'r', dateKey: '2026-10-12', createdAt: 1, sessionId: 's' };
+  const rows = measureRows({ recording: { ...rec, profil: 'etudes' }, kind: 'calibration', metrics: { debit: 5 } });
+  assert.equal(rows[0].profil, 'etudes');
+  assert.equal('profil' in measureRows({ recording: rec, kind: 'calibration', metrics: { debit: 5 } })[0], false);
+  const res = { valid: true, analysis: { D: 10, pauseTotal: 2, pauseCount: 3 } };
+  assert.ok(spontaneRows({ ...rec, profil: 'quotidien' }, res).every((r) => r.profil === 'quotidien'));
+  assert.deepEqual(ofProfil(rows, 'etudes').length, rows.length);
+  assert.deepEqual(ofProfil(rows, 'pro').length, 0);
+});

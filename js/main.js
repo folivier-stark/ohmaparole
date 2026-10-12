@@ -1,6 +1,7 @@
 import { defineRoutes, startRouter } from './router.js';
 import * as repo from './data/repo.js';
 import { loadContent } from './data/content.js';
+import { isProfil } from './core/profil.js';
 import { setSpeechEnabled } from './platform/speech.js';
 import { setHapticsEnabled } from './platform/haptics.js';
 import { requestPersist } from './platform/storage.js';
@@ -13,12 +14,6 @@ import * as settings from './ui/screens/settings.js';
 import * as bilan from './ui/screens/bilan.js';
 import * as proche from './ui/screens/proche.js';
 import { scheduleReanalysis } from './audio/voice-measure.js';
-
-/** Syllabes des textes lus aux bilans (texte de référence et inédits A, B, C). */
-const syllablesOf = (content) => Object.fromEntries([
-  [content.reference.id, content.reference.syllabes],
-  ...(content.mesure?.textesInedits ?? []).map((t) => [t.id, t.syllabes]),
-]);
 
 const inSession = () => location.hash.startsWith('#/session');
 
@@ -37,20 +32,48 @@ function registerServiceWorker() {
   }).catch(() => {});
 }
 
+/** Le contenu du profil, avec la date du dernier changement (la mesure de la voix repart de là). */
+async function profilContent(profil) {
+  const [content, since] = await Promise.all([loadContent('fr', profil), repo.getMeta('profilDepuis', 0)]);
+  return { ...content, profilSince: Number(since) || 0 };
+}
+
+/** Réanalyse des prises sans mesure à l'algorithme courant (syllabes de tous les textes, quel que soit le profil). */
+const reanalysisOptions = (content) => ({ repo, syllables: content.referencePro.syllabes, syllablesById: content.syllablesById });
+
 async function boot() {
   registerServiceWorker();
-  const content = await loadContent('fr');
+  const [onboarded, stored] = await Promise.all([repo.getMeta('onboarded', false), repo.getMeta('profil', null)]);
+  const profil = isProfil(stored) ? stored : 'pro';
+  const ctx = {
+    repo,
+    content: await profilContent(profil),
+    // Utilisateur d'avant les profils : la carte « Ton profil ? » de l'accueil bloque jusqu'à sa réponse.
+    needsProfil: Boolean(onboarded) && !isProfil(stored),
+    /**
+     * Enregistre le profil et recharge le contenu. change : changement depuis les Réglages, la mesure de la
+     * voix repart de zéro (meta profilDepuis). Renvoie le nouveau contenu.
+     */
+    async applyProfil(next, { change = false } = {}) {
+      if (!isProfil(next)) throw new RangeError(`Profil inconnu : ${next}`);
+      await repo.setMeta('profil', next);
+      if (change) await repo.setMeta('profilDepuis', Date.now());
+      ctx.content = await profilContent(next);
+      ctx.needsProfil = false;
+      return ctx.content;
+    },
+  };
   const prefs = await repo.getSettings();
   setSpeechEnabled(prefs.voice);
   setHapticsEnabled(prefs.vibrate);
-  defineRoutes({ onboarding, home, session, end, progress, settings, bilan, proche }, { repo, content });
-  if (!(await repo.getMeta('onboarded', false)) && !location.hash.startsWith('#/onboarding')) {
+  defineRoutes({ onboarding, home, session, end, progress, settings, bilan, proche }, ctx);
+  if (!onboarded && !location.hash.startsWith('#/onboarding')) {
     history.replaceState(null, '', '#/onboarding');
   }
   startRouter();
   if (await repo.getMeta('persistAsked', false)) requestPersist();
   // Mesures de la voix manquantes ou d'un ancien algorithme : recalculées depuis les Blobs, en arrière-plan.
-  scheduleReanalysis({ repo, syllables: content.reference.syllabes, syllablesById: syllablesOf(content) });
+  scheduleReanalysis(reanalysisOptions(ctx.content));
 }
 
 boot().catch((err) => {

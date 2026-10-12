@@ -1,5 +1,6 @@
 import { h } from '../dom.js';
-import { RDV_QUESTIONS, DONT_KNOW, rdvQuestionIds, nextRdvQuestion, answerRdv, skipRdv } from '../../core/rdv.js';
+import { RDV_QUESTIONS, DONT_KNOW, rdvQuestionIds, nextRdvQuestion, answerRdv, skipRdv, isMoment } from '../../core/rdv.js';
+import { textsFor } from '../../core/texts.js';
 
 const NOTED_MS = 700;
 /** Après « Passer », la question suivante ignore les taps un court instant (double tap). */
@@ -48,12 +49,12 @@ export function createRdvCard({ session, repo, onDone }) {
     const q = RDV_QUESTIONS[id];
     const ids = rdvQuestionIds(s);
     // Ancien flux (« répéter » déjà répondu, sans filtre) : pas de numéro, il ne reste que l'objectif.
-    const pos = ids.includes(id) && !(s.rdvProspect == null && !s.rdvProspectSkipped && s.feedback != null)
+    const pos = ids.includes(id) && (isMoment(s) || !(s.rdvProspect == null && !s.rdvProspectSkipped && s.feedback != null))
       ? `, question ${ids.indexOf(id) + 1} sur ${ids.length}` : '';
     const options = q.dontKnow === false ? q.options : [...q.options, DONT_KNOW];
     // replaceChildren écrirait « null » en texte : on filtre les nœuds absents.
     el.replaceChildren(...[
-      h('p', { class: 'muted small' }, `Ton dernier rendez-vous${pos}`),
+      h('p', { class: 'muted small' }, `${textsFor(s.profil).rdvCardHead}${pos}`),
       id === 'objectif' ? h('p', { class: 'why' }, `« ${s.goal.trim()} »`) : null,
       h('p', { class: 'rdv-q' }, q.text),
       h('div', { class: 'answers' }, options.map((o) => h('button', {

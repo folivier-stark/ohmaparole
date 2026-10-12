@@ -105,7 +105,8 @@ export async function reanalyzeReferences({ repo, syllables, syllablesById = {},
     // Parole spontanée : celle du point de la semaine, ou « se présenter » au bilan (sans texte, ni débit).
     const spontane = rec.kind === 'spontane' || (rec.kind === 'bilan' && rec.itemId === 'presentation');
     const kind = rec.kind === 'bilan' ? 'bilan' : spontane ? 'spontane' : rec.voiceCheck ?? 'reference-v1';
-    const syll = rec.kind === 'bilan' ? syllablesById[rec.itemId] ?? null : syllables;
+    // Le texte lu : ses syllabes sont stockées avec la prise depuis les profils ; avant, c'était le texte pro.
+    const syll = rec.syllables ?? (rec.kind === 'bilan' ? syllablesById[rec.itemId] ?? null : syllablesById[rec.itemId] ?? syllables);
     const res = await measureTake(blob, spontane ? null : syll, spontane || rec.voiceCheck || rec.kind === 'bilan' ? {} : V1_REFERENCE_OPTIONS);
     if (res.valid) {
       const rows = spontane ? spontaneRows(rec, res, { kind, context: bilanContext(rec) }) : takeRows(rec, kind, res);

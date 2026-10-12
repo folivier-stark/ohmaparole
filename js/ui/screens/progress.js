@@ -4,7 +4,8 @@ import { monthCount, totalCount, dailyCount, monthGrid } from '../../core/progre
 import { voiceTimeline, abPair, calibrationRemaining, sessionsUntilControl, CALIBRATION_SESSIONS } from '../../core/voice-plan.js';
 import { programGoal, cumulativeSeries, goalProgress, axisSummary, rateTrend, monthlyBlocks, recentGoals, TREND_MIN_ANSWERS } from '../../core/dashboard.js';
 import { RDV_QUESTIONS, DONT_KNOW, rdvBoard } from '../../core/rdv.js';
-import { BLOCKS, plural, trendText, frequencyText } from '../../core/texts.js';
+import { plural, trendText, frequencyText, textsFor } from '../../core/texts.js';
+import { ofProfil, isNeutral } from '../../core/profil.js';
 import { createCompare } from '../components/compare.js';
 import { cumulativeChart, monthlyPoints, shortDayMonth, noiseBand } from '../components/chart.js';
 import { voiceReport, voiceSummary } from '../../core/voice-report.js';
@@ -14,7 +15,7 @@ import { bilansDone, lastBilanKey, BILAN_EVERY } from '../../core/bilan-plan.js'
 import { souvenirs } from '../../core/louarn.js';
 import { createParcours } from '../components/parcours.js';
 
-const AXIS_CARDS = [
+const axisCards = ({ BLOCKS }) => [
   { key: 'diction', title: 'Diction et élocution', tagline: BLOCKS.articulation.tagline, measure: 'Prises « Clair »', kind: 'Ton ressenti.', empty: 'Réponds à « Ta prise ? » à la fin de l’articulation.' },
   { key: 'ecoute', title: 'Écoute', tagline: BLOCKS.ecoute.tagline, measure: 'Détails cachés repérés', kind: 'Ton ressenti.', empty: 'Réponds à « Repéré ? » après chaque écoute.' },
   { key: 'posture', title: 'Posture et présence', tagline: BLOCKS.posture.tagline, measure: 'Séances où tu t’es senti posé', kind: 'Ton ressenti.', empty: 'Réponds à « Tu t’es senti posé ? » à la fin du bloc posture.' },
@@ -66,8 +67,8 @@ function bilansCard(sessions) {
 }
 
 /** « Ton point de la semaine » (spec V2 §6) : comptes bruts, environ, aucune baisse dite. */
-function pointCard(sessions, measures) {
-  const s = pointSummary({ sessions, measures });
+function pointCard(sessions, measures, profil) {
+  const s = pointSummary({ sessions, measures, profil });
   return h('div', { class: 'card axis' },
     h('h3', {}, 'Ton point de la semaine'),
     h('p', { class: 'muted small' }, 'Toutes les 4 séances, à la place du bloc 3.'),
@@ -100,7 +101,7 @@ function axisCard(sessions, today, a, top = null, bottom = null) {
 }
 
 /** Une ligne « En rendez-vous » (eval-rdv.md §5.2) : x sur y, mois 1 à côté des 4 dernières semaines, sans flèche. */
-function rdvLine(l, extra) {
+function rdvLine(l, extra, texts) {
   const source = l.measured ? `${l.source} · durée mesurée ${l.measured} fois` : l.source;
   const few = l.month1.n < 10 || (l.separate && l.recent.n < 10);
   return h('div', { class: 'rdv-line' },
@@ -109,43 +110,53 @@ function rdvLine(l, extra) {
       ? [
         h('p', {}, `Mois 1 : ${l.month1.k} sur ${l.month1.n}`,
           l.separate ? ` · Ces 4 semaines : ${l.recent.n ? `${l.recent.k} sur ${l.recent.n}` : 'aucune réponse'}` : ''),
-        few ? h('p', { class: 'muted small' }, 'sur peu de RDV') : null,
+        few ? h('p', { class: 'muted small' }, texts.rdvFew) : null,
         extra,
       ]
       : h('p', { class: 'muted small' }, 'Pas encore de réponse.'));
 }
 
-function rdvCard(sessions, today) {
-  const lines = rdvBoard(sessions, today);
+/**
+ * La carte « En rendez-vous », ou « Dans tes moments importants » pour un profil non pro : mêmes règles
+ * d'honnêteté, mais seulement « répéter » et l'objectif (ni suite, ni budget, ni durée).
+ */
+function rdvCard(sessions, today, profil) {
+  const texts = textsFor(profil);
+  const neutral = isNeutral(profil);
+  const lines = rdvBoard(sessions, today).filter((l) => !neutral || l.key === 'repeter' || l.key === 'objectif');
   const goals = recentGoals(sessions, 5);
   // L'indicateur principal de l'axe (eval-methodologie.md §1.3) porte l'état de tendance.
   const trend = h('p', { class: 'trend' }, trendText(rateTrend(sessions, 'rdv', today, { sinceKey: lastBilanKey(sessions) }),
     { missing: TREND_MIN_ANSWERS - axisSummary(sessions, 'rdv', today).total }));
   const started = lines.some((l) => l.month1.n);
   return h('div', { class: 'card axis' },
-    h('h3', {}, 'En rendez-vous'),
-    h('p', { class: 'muted small' }, 'Ce qui se passe en vrai, face à tes clients.'),
+    h('h3', {}, texts.rdvCardTitle),
+    h('p', { class: 'muted small' }, texts.rdvCardTagline),
     started
       ? [
-        lines.map((l) => rdvLine(l, l.key === 'repeter' ? trend : null)),
+        lines.map((l) => rdvLine(l, l.key === 'repeter' ? trend : null, texts)),
         lines.some((l) => l.month1.n && !l.separate)
           ? h('p', { class: 'muted small' }, 'Les 4 dernières semaines s’afficheront à côté, une fois ton mois 1 passé.')
           : null,
       ]
-      : h('p', { class: 'muted' }, 'Lance « Avant un rendez-vous » avant ton prochain RDV, puis touche « Je sors du RDV » en sortant.'),
-    h('h3', { class: 'sub' }, 'Tes derniers objectifs de RDV'),
+      : h('p', { class: 'muted' }, texts.rdvCardEmpty),
+    h('h3', { class: 'sub' }, texts.rdvGoalsTitle),
     goals.length
       ? h('ul', { class: 'goals' }, goals.map((x) => h('li', {},
         h('span', { class: 'muted small' }, shortDayMonth(x.dateKey)), ' ', x.goal,
         h('span', { class: 'src' },
-          `${x.result ? RESULT[x.result] : '—'} · La suite : ${x.suite ? SUITE[x.suite] : '—'}`))))
-      : h('p', { class: 'muted' }, 'Les objectifs que tu saisis avant un RDV apparaîtront ici.'));
+          neutral ? (x.result ? RESULT[x.result] : '—') : `${x.result ? RESULT[x.result] : '—'} · La suite : ${x.suite ? SUITE[x.suite] : '—'}`))))
+      : h('p', { class: 'muted' }, texts.rdvGoalsEmpty));
 }
 
 export async function render(root, { repo, content }) {
   const today = dayKey(Date.now());
   const [y, m] = today.split('-').map(Number);
-  const [sessions, recordings, measures] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
+  const [sessions, allRecordings, allMeasures] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
+  // La mesure de la voix est propre au profil, depuis le dernier changement ; les souvenirs, eux, ne se perdent pas.
+  const recordings = ofProfil(allRecordings, content.profil, content.profilSince);
+  const measures = ofProfil(allMeasures, content.profil, content.profilSince);
+  const goal = programGoal(content.program);
   const daily = dailyCount(sessions);
   const total = totalCount(sessions);
   const monthDays = monthCount(sessions, y, m);
@@ -154,12 +165,12 @@ export async function render(root, { repo, content }) {
 
   // Le Parcours en tête (G §4.2, maquette §5.2) : Louarn, le sentier de 18 pierres, les souvenirs obtenus.
   const parcours = createParcours({
-    dailyCount: daily, program: content.program, souvenirs: souvenirs(sessions, recordings), lines: content.louarn?.repliques ?? null,
+    dailyCount: daily, program: content.program, souvenirs: souvenirs(sessions, allRecordings, { goal, profil: content.profil }), lines: content.louarn?.repliques ?? null,
   });
 
   // Objectif 72 séances : le sentier remplace la barre, et dit déjà « x séances sur 72 » et « À 72… » (G §4.2).
   // La date estimée et la courbe du cumul restent, sans changement.
-  const g = goalProgress(sessions, today, programGoal(content.program));
+  const g = goalProgress(sessions, today, goal);
   const series = cumulativeSeries(sessions, today);
   const goalCard = h('div', { class: 'card' },
     h('h2', {}, `Objectif ${g.goal} séances`),
@@ -172,9 +183,9 @@ export async function render(root, { repo, content }) {
   // Axes de progrès
   const voiceTop = voiceSection(measures, sessionsUntilControl(recordings, daily));
   const axisCards = [
-    ...AXIS_CARDS.map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
-    rdvCard(sessions, today),
-    pointCard(sessions, measures),
+    ...axisCards(textsFor(content.profil)).map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
+    rdvCard(sessions, today, content.profil),
+    pointCard(sessions, measures, content.profil),
     bilansCard(sessions),
   ];
 

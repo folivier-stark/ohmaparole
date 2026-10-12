@@ -23,9 +23,24 @@ const lineProfil = (l) => String(l?.condition ?? '').split('&').find((c) => c.st
  */
 export function louarnFor(louarn, neutral, profil) {
   if (!louarn || !isNeutral(profil)) return louarn ?? null;
+  // Sans la liste proOnly, les répliques du monde pro pourraient sortir : le renard se tait plutôt.
+  if (!Array.isArray(neutral?.proOnly)) return null;
   const out = new Set(neutral?.proOnly ?? []);
   const extra = (neutral?.repliques ?? []).filter((l) => [null, profil].includes(lineProfil(l)));
   return { ...louarn, repliques: [...(louarn.repliques ?? []).filter((l) => !out.has(l.id)), ...extra] };
+}
+
+/**
+ * Syllabes de tous les textes lus (références et inédits des deux packs Mesure) : la réanalyse d'une prise
+ * ancienne retrouve son texte quel que soit le profil du moment (js/audio/voice-measure.js).
+ */
+function syllablesOf(...packs) {
+  const out = {};
+  for (const { reference, mesure } of packs) {
+    if (reference?.id) out[reference.id] = reference.syllabes;
+    for (const t of mesure?.textesInedits ?? []) out[t.id] = t.syllabes;
+  }
+  return out;
 }
 
 const NEUTRAL_EXTRAS = ['reference', 'objectifDefaut', 'pourquoiExemples', 'objectifsMoment', 'motivations'];
@@ -38,7 +53,10 @@ const NEUTRAL_EXTRAS = ['reference', 'objectifDefaut', 'pourquoiExemples', 'obje
  * neutral : { programs: { etudes, quotidien }, extras, mesure, louarn } (fichiers *-quotidien.json).
  */
 export function profileContent({ program, exercises, extras, louarn = null, mesure = null, neutral = {} }, profil = 'pro') {
-  if (!isNeutral(profil)) return { ...indexContent({ program, exercises, extras }), louarn, mesure, profil: 'pro' };
+  const pro = { reference: extras.reference, mesure };
+  if (!isNeutral(profil)) {
+    return { ...indexContent({ program, exercises, extras }), louarn, mesure, profil: 'pro', referencePro: extras.reference, syllablesById: syllablesOf(pro) };
+  }
   const prog = neutral.programs?.[profil];
   if (!prog || !neutral.extras) throw new Error(`Contenu du profil ${profil} introuvable`);
   const ne = neutral.extras;
@@ -54,5 +72,7 @@ export function profileContent({ program, exercises, extras, louarn = null, mesu
     louarn: louarnFor(louarn, neutral.louarn, profil),
     mesure: neutral.mesure ?? null,
     profil,
+    referencePro: extras.reference,
+    syllablesById: syllablesOf(pro, { reference: ne.reference, mesure: neutral.mesure }),
   };
 }

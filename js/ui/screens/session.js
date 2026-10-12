@@ -11,7 +11,9 @@ import { bilanDue, bilanControlDue, buildBilanPlan, buildBilanControlPlan, bilan
 import { buildBilanReport, controlResult } from '../../core/evaluation.js';
 import { weeklyPointDue, pickPointItem, spontaneRows } from '../../core/weekly-point.js';
 import { postureMicConfig, latestCalibration } from '../../core/live-silence.js';
-import { BLOCKS, PAS_COMPTE, RDV_NO_RECORD } from '../../core/texts.js';
+import { PAS_COMPTE, textsFor } from '../../core/texts.js';
+import { programGoal } from '../../core/dashboard.js';
+import { ofProfil, withProfil } from '../../core/profil.js';
 import { rdvBubble, stablePick, humeurFor } from '../../core/louarn.js';
 import { createTimer } from '../components/timer.js';
 import { createBulle } from '../components/fox.js';
@@ -37,13 +39,24 @@ function rating(question, options, onPick) {
     h('div', { class: 'row' }, options.map(([v, label]) => h('button', { class: 'btn-small', onclick: () => onPick(v) }, label))));
 }
 
-export async function render(root, { repo, content, navigate, params }) {
+export async function render(root, { repo, content, navigate, params, needsProfil = false }) {
+  // Raccourci lancé avant d'avoir répondu à « Ton profil ? » : la question passe d'abord.
+  if (needsProfil) { navigate('/home', { replace: true }); return undefined; }
   const kind = params[0] === 'prerdv' ? 'prerdv' : 'daily';
   const t0 = Date.now();
   const today = dayKey(t0);
-  const [sessions, recordings, why, measures] = await Promise.all([
+  const profil = content.profil ?? 'pro';
+  const texts = textsFor(profil);
+  const { BLOCKS, RDV_NO_RECORD } = texts;
+  // La mesure de la voix est propre au profil, depuis le dernier changement (spec profils §2).
+  const mine = (rows) => ofProfil(rows, profil, content.profilSince);
+  const [sessions, allRecordings, why, allMeasures] = await Promise.all([
     repo.listSessions(), repo.listRecordings(), repo.getMeta('why', ''), repo.listMeasures(),
   ]);
+  const recordings = mine(allRecordings);
+  const measures = mine(allMeasures);
+  /** Toute ligne écrite porte le profil de la séance. */
+  const saveRows = (rows) => repo.saveMeasures(withProfil(rows, profil));
   // Seuil des mesures en direct (posture, réplique éclair) : niveaux de la dernière prise de voix valide.
   const calibration = latestCalibration(measures);
 
@@ -70,7 +83,7 @@ export async function render(root, { repo, content, navigate, params }) {
       const voiceCheck = voiceCheckDue(recordings, done, { todayKey: today });
       // Point de la semaine (spec V2 §6) : jamais avec une mesure de voix, il est alors reporté.
       const due = weeklyPointDue({ sessionNumber: n, sessions, voiceCheck, comeback });
-      const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions, sessionNumber: n, dateKey: today }) : null;
+      const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions, sessionNumber: n, dateKey: today, cycleSessions: programGoal(content.program) }) : null;
       plan = buildDailyPlan({
         content, history: historyIds(sessions), sessionNumber: n, dateKey: today, lastBloc3: lastBloc3(sessions),
         voiceCheck, comeback, weeklyPoint: due && item ? { ...due, item } : null,
@@ -86,6 +99,7 @@ export async function render(root, { repo, content, navigate, params }) {
     weeklyPoint: plan.weeklyPoint ? { ...plan.weeklyPoint, ready: null, criteres: null } : null,
     bilan: plan.bilan ? { ...plan.bilan, forme: null, faits: null, grille: null, ab: null, proche: null, report: null, controlDueAt: null, complete: false } : null,
     consigneId: plan.consigneId ?? null, ratings: {}, recordingIds: [], goal: '', feedback: null,
+    profil,
   };
 
   let run = null;
@@ -146,7 +160,7 @@ export async function render(root, { repo, content, navigate, params }) {
         const meta = {
           id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: partial ? 'partial' : st.recordKind,
           milestone: null, itemId: st.itemId, sessionId: record.id,
-          mimeType: res.mimeType, durationMs: res.durationMs, sizeBytes: res.blob.size,
+          mimeType: res.mimeType, durationMs: res.durationMs, sizeBytes: res.blob.size, profil,
         };
         await repo.saveRecording(meta, res.blob);
         record.recordingIds.push(meta.id);
@@ -162,12 +176,12 @@ export async function render(root, { repo, content, navigate, params }) {
     const meta = {
       id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: 'reference', milestone: null,
       voiceCheck: plan.voiceCheck, sessionNumber: plan.sessionNumber, itemId: content.reference.id, sessionId: record.id,
-      mimeType, durationMs, sizeBytes: blob.size,
+      mimeType, durationMs, sizeBytes: blob.size, profil, syllables: content.reference.syllabes,
     };
     await repo.saveRecording(meta, blob);
     record.recordingIds.push(meta.id);
     record.voiceTakes += 1;
-    await repo.saveMeasures(takeRows(meta, plan.voiceCheck, res));
+    await saveRows(takeRows(meta, plan.voiceCheck, res));
     await save();
   }
 
@@ -176,7 +190,7 @@ export async function render(root, { repo, content, navigate, params }) {
     const meta = {
       id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: kindOf, milestone: null,
       sessionNumber: plan.sessionNumber, itemId: plan.weeklyPoint?.itemId ?? null, sessionId: record.id,
-      mimeType, durationMs, sizeBytes: blob.size, ...extra,
+      mimeType, durationMs, sizeBytes: blob.size, profil, ...extra,
     };
     await repo.saveRecording(meta, blob);
     record.recordingIds.push(meta.id);
@@ -193,10 +207,11 @@ export async function render(root, { repo, content, navigate, params }) {
       id: crypto.randomUUID(), createdAt: Date.now(), dateKey: today, kind: ref ? 'reference' : 'bilan', milestone: null,
       voiceCheck: ref ? 'bilan' : null, sessionNumber: plan.sessionNumber, itemId: st.itemId, sessionId: record.id,
       forme: record.bilan.forme, bilanIndex: record.bilan.index, mimeType, durationMs, sizeBytes: blob.size,
+      profil, syllables: st.syllables ?? null,
     };
     await repo.saveRecording(meta, blob);
     record.recordingIds.push(meta.id);
-    await repo.saveMeasures(takeRows(meta, 'bilan', res));
+    await saveRows(takeRows(meta, 'bilan', res));
     await save();
   }
 
@@ -204,7 +219,7 @@ export async function render(root, { repo, content, navigate, params }) {
     const box = h('div', { class: 'bilan-step' }, h('h2', { class: 'step-title' }, 'À l’aveugle'));
     add(box);
     const myIndex = run.index;
-    const pair = abPair(await repo.listRecordings());
+    const pair = abPair(mine(await repo.listRecordings()));
     if (run.index !== myIndex) return;
     const go = h('button', { class: 'btn btn-go', onclick: () => { if (run.index === myIndex) apply(next(run, Date.now())); } }, 'Suivant');
     const cmp = pair ? await createCompare({
@@ -254,8 +269,7 @@ export async function render(root, { repo, content, navigate, params }) {
           const cfg = st.kind === 'guide' ? postureMicConfig(st.itemId) : null;
           if (cfg) {
             ctlBase(createPostureMic({
-              item: content.byId.get(st.itemId), config: cfg, calibration, record,
-              saveRows: (rows) => repo.saveMeasures(rows),
+              item: content.byId.get(st.itemId), config: cfg, calibration, record, saveRows,
             }));
           }
           add(lateRating);
@@ -276,7 +290,7 @@ export async function render(root, { repo, content, navigate, params }) {
           step: st,
           saveTake: async (take) => {
             const meta = await savePointTake('spontane', take);
-            await repo.saveMeasures(spontaneRows(meta, take.res));
+            await saveRows(spontaneRows(meta, take.res));
           },
           onReady: (v) => { record.weeklyPoint.ready = v; save(); },
           onDone: advance,
@@ -295,7 +309,7 @@ export async function render(root, { repo, content, navigate, params }) {
           step: { ...st, doneText: 'C’est enregistré.' },
           saveTake: async (take) => {
             const meta = await savePointTake('bilan', take, { itemId: 'presentation', forme: record.bilan.forme, bilanIndex: record.bilan.index });
-            await repo.saveMeasures(spontaneRows(meta, take.res, { kind: 'bilan', context: bilanContext(meta) }));
+            await saveRows(spontaneRows(meta, take.res, { kind: 'bilan', context: bilanContext(meta) }));
           },
           onReady: () => {},
           onDone: advanceDone,
@@ -316,7 +330,7 @@ export async function render(root, { repo, content, navigate, params }) {
         ctlBase(createPointEclair({
           step: st, calibration, record,
           saveTake: (take) => savePointTake('eclair', take),
-          saveRows: (rows) => repo.saveMeasures(rows),
+          saveRows,
           onCriteres: (c) => { record.weeklyPoint.criteres = c; save(); },
           onDone: advance,
         }));
@@ -379,7 +393,7 @@ export async function render(root, { repo, content, navigate, params }) {
           rating('Repéré ?', [['oui', 'Oui'], ['non', 'Non']], (v) => { record.ratings[st.itemId] = v; advance(); }));
         break;
       case 'objective':
-        goalInput = h('input', { class: 'field', type: 'text', placeholder: 'À la fin de ce rendez-vous, je veux…', value: record.goal });
+        goalInput = h('input', { class: 'field', type: 'text', placeholder: texts.rdvObjective, value: record.goal });
         add(
           title, goalInput,
           h('div', { class: 'chips' }, content.extras.objectifsRdv.map((x) => h('button', { class: 'chip', onclick: () => { goalInput.value = x; } }, x))),
@@ -461,9 +475,12 @@ export async function render(root, { repo, content, navigate, params }) {
       // Seulement sur un bilan complet : arrêté en route, il reste dû et n'a pas de rapport.
       try {
         const [ss, recs, ms] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
-        if (record.bilan.kind === 'controle') record.bilan.result = controlResult({ control: record, measures: ms });
+        if (record.bilan.kind === 'controle') record.bilan.result = controlResult({ control: record, measures: mine(ms), refId: content.reference.id });
         else {
-          const report = buildBilanReport({ session: record, sessions: ss, recordings: recs, measures: ms, todayKey: today, lines: content.mesure ?? {} });
+          const report = buildBilanReport({
+            session: record, sessions: ss, recordings: mine(recs), measures: mine(ms), todayKey: today, lines: content.mesure ?? {},
+            profil, since: content.profilSince,
+          });
           record.bilan.report = report;
           record.bilan.controlDueAt = report.controlDueAt;
         }
@@ -499,7 +516,7 @@ export async function render(root, { repo, content, navigate, params }) {
       record.goal ? h('p', { class: 'say small' }, record.goal) : null,
       why ? h('p', { class: 'why' }, `« ${why} »`) : null,
       louarn,
-      h('p', { class: 'muted' }, 'Je suis là pour comprendre, pas pour convaincre.'),
+      h('p', { class: 'muted' }, texts.rdvReadyNote),
       note,
       h('button', { class: 'btn btn-rdv', onclick: () => navigate('/home', { replace: true }) }, 'J’y vais')));
   }

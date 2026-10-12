@@ -99,10 +99,24 @@ for (const [profil, pack] of Object.entries(PACKS)) {
   console.log(`Programme ${profil} écrit dans content/program-${profil}.json (${program.weeks.length} semaines)`);
 }
 
+// Surcharges d'intégration (docs/experts/* restent intouchés) : un mot du monde pro dans un texte neutre.
+// QL16 : le « budget » d'un couple pour une voiture ; « dans nos moyens » dit la même chose (spec profils §1).
+const SURCHARGES = { 'fr.QL16': { reformulationRef: ['dans notre budget', 'dans nos moyens'] } };
+const surcharge = (it) => {
+  const s = SURCHARGES[it.id];
+  if (!s) return it;
+  const o = { ...it };
+  for (const [k, [from, to]] of Object.entries(s)) {
+    if (!o[k]?.includes(from)) throw new Error(`Surcharge ${it.id}.${k} : « ${from} » introuvable`);
+    o[k] = o[k].replace(from, to);
+  }
+  return o;
+};
+
 const merged = {
   ...out,
   sources: [...SOURCES, COMMUN, PACKS.etudes.source, PACKS.quotidien.source],
-  items: [...out.items, ...[...commun.items, ...packItems.etudes, ...packItems.quotidien].map(norm)],
+  items: [...out.items, ...[...commun.items, ...packItems.etudes, ...packItems.quotidien].map(norm).map(surcharge)],
   consignesQuotidien: commun.consignes.map((c) => ({ id: `${LANG}.${c.id}`, texte: c.texte })),
 };
 const allIds = [...merged.items, ...merged.consignes, ...merged.consignesQuotidien].map((it) => it.id);

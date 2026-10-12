@@ -41,7 +41,7 @@ export function createPointEclair({ step, calibration, record, saveTake, saveRow
       h('h2', { class: 'step-title' }, step.title),
       message,
       h('ol', { class: 'lines' }, step.lines.map((l) => h('li', {}, l))),
-      btn('Écouter le prospect', () => { run().catch((e) => { console.error(e); cleanup(); }); }));
+      btn(step.labels?.ecouter ?? 'Écouter le prospect', () => { run().catch((e) => { console.error(e); cleanup(); }); }));
   }
 
   async function run() {
@@ -68,13 +68,13 @@ export function createPointEclair({ step, calibration, record, saveTake, saveRow
     // La réplique : à voix haute, texte masqué. Sans synthèse vocale, on la lit une fois.
     await new Promise((resolve) => {
       if (canSpeak()) {
-        show(h('p', { class: 'label' }, 'Le prospect dit…'), h('p', { class: 'muted' }, 'Écoute. Le texte reste caché.'));
+        show(h('p', { class: 'label' }, step.labels?.dit ?? 'Le prospect dit…'), h('p', { class: 'muted' }, 'Écoute. Le texte reste caché.'));
         speak(step.replique, {
           onEnd: resolve,
           onError: () => show(h('p', { class: 'say small' }, step.replique), btn('J’ai lu', resolve)),
         });
       } else {
-        show(h('p', { class: 'label' }, 'Le prospect dit…'), h('p', { class: 'say small' }, step.replique), btn('J’ai lu', resolve));
+        show(h('p', { class: 'label' }, step.labels?.dit ?? 'Le prospect dit…'), h('p', { class: 'say small' }, step.replique), btn('J’ai lu', resolve));
       }
     });
     if (my !== token || destroyed) return;
@@ -162,7 +162,7 @@ export function createPointEclair({ step, calibration, record, saveTake, saveRow
     });
     const boxes = step.criteres.map((c) => h('input', { type: 'checkbox' }));
     show(
-      h('p', { class: 'label' }, 'Le prospect a dit'),
+      h('p', { class: 'label' }, step.labels?.aDit ?? 'Le prospect a dit'),
       h('p', { class: 'say small' }, step.replique),
       labels.length ? h('ul', { class: 'eclair-labels' }, labels.map((t) => h('li', {}, t))) : h('p', { class: 'muted small' }, 'Pas de mesure fiable cette fois.'),
       take?.blob?.size ? h('button', { class: 'btn-secondary', onclick: () => player.play(take.blob) }, '▶ Réécouter ta réponse') : null,

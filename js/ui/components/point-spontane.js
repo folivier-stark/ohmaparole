@@ -118,7 +118,7 @@ export function createPointSpontane({ step, saveTake, onReady, onDone }) {
   function askReady() {
     phase = 'ready';
     show(
-      h('p', { class: 'rating-q' }, READY_QUESTION),
+      h('p', { class: 'rating-q' }, step.readyQuestion ?? READY_QUESTION),
       h('div', { class: 'stack' }, READY_OPTIONS.map((o) => btn(o.label, () => { onReady(o.value); done(); }, 'btn-small'))),
       h('button', { class: 'btn-link', onclick: () => done() }, 'Passer'));
   }

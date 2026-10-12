@@ -6,7 +6,9 @@ import { weeklyPointDue } from '../../core/weekly-point.js';
 import { bilanDue, bilanControlDue, bilanAnnouncement } from '../../core/bilan-plan.js';
 import { rdvExitCandidate, pendingRdvReturn, rdvStarted, rdvQuestionIds, exitRdv, RDV_EXIT_WINDOW_MS } from '../../core/rdv.js';
 import { nextBloc3 } from '../../core/planner.js';
-import { homeLine, goLabel, goSubtitle, plural } from '../../core/texts.js';
+import { homeLine, goLabel, goSubtitle, plural, textsFor } from '../../core/texts.js';
+import { programGoal } from '../../core/dashboard.js';
+import { ofProfil, PROFIL_CHOICES } from '../../core/profil.js';
 import { homeBubble, stablePick, motivationLines, stageFor, humeurFor, stade6PlusToday } from '../../core/louarn.js';
 import { createRdvCard } from '../components/rdv-card.js';
 import { createBulle, createFox } from '../components/fox.js';
@@ -17,7 +19,8 @@ import { createBulle, createFox } from '../components/fox.js';
  */
 async function louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now, announce }) {
   const daily = dailyCount(sessions);
-  const stage = stageFor(daily).id;
+  const goal = programGoal(content.program);
+  const stage = stageFor(daily, goal).id;
   const plain = () => h('div', { class: 'lo-bulle-wrap' }, createFox({ stage, size: 96 }),
     h('p', { class: 'context' }, homeLine({ ...status, voiceDue: due, why, motivations: content.motivations, seed })));
   const silent = () => createBulle({ texte: null, stage });
@@ -29,7 +32,8 @@ async function louarnLine({ repo, content, sessions, card, status, due, why, see
     const b = homeBubble({
       cardShown: Boolean(card), discret, status, voiceDue: due, dailyCount: daily, why, seed,
       hour: new Date(now).getHours(), bloc3: nextBloc3(lastBloc3(sessions)),
-      stade6Plus: stade6PlusToday({ dailyCount: daily, shownOn, todayKey: today }),
+      stade6Plus: stade6PlusToday({ dailyCount: daily, shownOn, todayKey: today, goal }),
+      weeks: content.program.weeks.length, profil: content.profil,
     });
     if (card) return silent();
     // Bilan annoncé la veille et le jour même (spec V2 §7), y compris en mode discret : c'est une information.
@@ -51,7 +55,7 @@ async function louarnLine({ repo, content, sessions, card, status, due, why, see
 }
 
 /** « Je sors du RDV » : l'heure de sortie donne la durée réelle, puis les questions arrivent aussitôt. */
-function exitButton(exit, { repo, navigate }) {
+function exitButton(exit, { repo, navigate, texts }) {
   const btn = h('button', {
     class: 'btn btn-out',
     onclick: async () => {
@@ -69,18 +73,51 @@ function exitButton(exit, { repo, navigate }) {
       }
       navigate('/home');
     },
-  }, h('span', {}, 'Je sors du RDV'), h('small', {}, `${rdvQuestionIds(exit).length} questions au plus, environ 15 secondes`));
+  }, h('span', {}, texts.rdvExit), h('small', {}, `${plural(rdvQuestionIds(exit).length, 'question')} au plus, environ 15 secondes`));
   return btn;
 }
 
-export async function render(root, { repo, content, navigate }) {
+/**
+ * Utilisateur d'avant les profils (onboarded, sans meta profil) : une carte unique, qui bloque l'accueil
+ * jusqu'à la réponse. Pro ne change rien ; les séances sont gardées dans tous les cas.
+ */
+function profilCard({ applyProfil, navigate }) {
+  let busy = false;
+  const pick = async (value) => {
+    if (busy) return;
+    busy = true;
+    try {
+      await applyProfil(value);
+    } catch (e) {
+      console.error(e);
+      busy = false;
+      return;
+    }
+    navigate('/home', { replace: true });
+  };
+  return h('div', { class: 'home' },
+    h('div', { class: 'card profil-card' },
+      h('p', { class: 'rdv-q' }, 'Ton profil ?'),
+      h('p', { class: 'muted small' }, 'Une seule fois. Tu pourras le changer dans les Réglages.'),
+      h('div', { class: 'answers' }, PROFIL_CHOICES.map((c) => h('button', { class: 'btn-answer', onclick: () => pick(c.value) },
+        h('span', {}, c.label), h('small', {}, c.hint))))));
+}
+
+export async function render(root, { repo, content, navigate, needsProfil = false, applyProfil }) {
+  if (needsProfil) {
+    root.replaceChildren(profilCard({ applyProfil, navigate }));
+    return undefined;
+  }
   const now = Date.now();
   const today = dayKey(now);
   const [y, m] = today.split('-').map(Number);
-  const [sessions, recordings, why, lastBackupAt, lastWhyCheck] = await Promise.all([
+  const [sessions, allRecordings, why, lastBackupAt, lastWhyCheck] = await Promise.all([
     repo.listSessions(), repo.listRecordings(), repo.getMeta('why', ''),
     repo.getMeta('lastBackupAt', null), repo.getMeta('lastWhyCheck', 0),
   ]);
+  // La mesure de la voix est propre au profil, depuis le dernier changement (spec profils §2).
+  const recordings = ofProfil(allRecordings, content.profil, content.profilSince);
+  const texts = textsFor(content.profil);
   const status = homeStatus(sessions, today);
   const n = dailyCount(sessions) + 1;
   // Bilan du jour (il remplace la séance) ou, sinon, mesure de la voix due (calibration ou contrôle).
@@ -121,13 +158,13 @@ export async function render(root, { repo, content, navigate }) {
     card,
     backupDue(lastBackupAt, now, total) ? h('a', { class: 'backup-line', href: '#/settings' }, 'Pense à sauvegarder tes données ›') : null,
     h('div', { class: 'actions' },
-      exit ? exitButton(exit, { repo, navigate }) : null,
+      exit ? exitButton(exit, { repo, navigate, texts }) : null,
       h('a', { class: status.doneToday ? 'btn btn-calm' : 'btn btn-go', href: '#/session/daily' },
         h('span', {}, goLabel({ ...status, bilan: bilanToday })),
         h('small', {}, goSubtitle({
           comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)), bilan: bilanToday,
           point: !bilanToday && contentReady && Boolean(weeklyPointDue({ sessionNumber: n, sessions, voiceCheck: due, comeback: status.comeback })),
         }))),
-      h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, 'Avant un rendez-vous · 90 s'))));
+      h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, texts.rdvButton))));
   return () => rdvCard?.destroy();
 }

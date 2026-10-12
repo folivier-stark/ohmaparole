@@ -8,6 +8,7 @@ import { storageStatus } from '../../platform/storage.js';
 import { APP_VERSION } from '../../version.js';
 import { createFox } from '../components/fox.js';
 import { scheduleReanalysis } from '../../audio/voice-measure.js';
+import { PROFIL_CHOICES, PROFIL_CHANGE_WARNING, profilLine } from '../../core/profil.js';
 
 const section = (title, ...children) => h('section', {}, h('h2', {}, title), children);
 
@@ -16,7 +17,39 @@ function checkbox(label, checked, onChange) {
   return h('label', { class: 'check' }, input, label);
 }
 
-export async function render(root, { repo, content }) {
+/**
+ * « Ton profil » (spec profils §2) : le profil actuel, et les deux autres. Avant de changer, une confirmation
+ * sur place : la mesure de la voix repart de zéro, les séances sont gardées.
+ */
+function profilSection({ content, applyProfil, navigate }) {
+  const current = PROFIL_CHOICES.find((c) => c.value === content.profil) ?? PROFIL_CHOICES[0];
+  const box = h('div', { class: 'stack' });
+  const list = () => box.replaceChildren(
+    h('p', {}, h('strong', {}, current.label), ` · ${current.hint}`),
+    ...PROFIL_CHOICES.filter((c) => c.value !== current.value).map((c) => h('button', { class: 'btn-secondary', onclick: () => ask(c) }, `Passer en ${profilLine(c)}`)));
+  const ask = (c) => box.replaceChildren(
+    h('p', {}, `Passer en ${c.label} ?`),
+    h('p', { class: 'muted' }, PROFIL_CHANGE_WARNING),
+    h('div', { class: 'row' },
+      h('button', {
+        class: 'btn-small',
+        onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          try {
+            await applyProfil(c.value, { change: true });
+            navigate('/settings', { replace: true });
+          } catch (err) {
+            console.error(err);
+            list();
+          }
+        },
+      }, 'Changer'),
+      h('button', { class: 'btn-small', onclick: list }, 'Annuler')));
+  list();
+  return box;
+}
+
+export async function render(root, { repo, content, applyProfil, navigate }) {
   const [why, objective, prefs, lastBackupAt, discret] = await Promise.all([
     repo.getMeta('why', ''), repo.getMeta('objective', content.extras.objectifDefaut),
     repo.getSettings(), repo.getMeta('lastBackupAt', null), repo.getMeta('renardDiscret', false),
@@ -46,10 +79,7 @@ export async function render(root, { repo, content }) {
         const r = await importBackup(p);
         backupInfo.textContent = `Restauré : ${r.sessions} séances, ${r.recordings} enregistrements.`;
         // Une sauvegarde v1 n'a pas de mesures de la voix : elles se recalculent depuis les Blobs.
-        scheduleReanalysis({
-          repo, syllables: content.reference.syllabes, delayMs: 0,
-          syllablesById: Object.fromEntries((content.mesure?.textesInedits ?? []).map((t) => [t.id, t.syllabes])),
-        });
+        scheduleReanalysis({ repo, syllables: content.referencePro.syllabes, delayMs: 0, syllablesById: content.syllablesById });
       } catch (e) {
         backupInfo.textContent = e.message;
       }
@@ -78,6 +108,7 @@ export async function render(root, { repo, content }) {
   root.replaceChildren(h('div', { class: 'settings' },
     h('a', { class: 'back', href: '#/home' }, '‹ Accueil'),
     h('h1', {}, 'Réglages'),
+    section('Ton profil', profilSection({ content, applyProfil, navigate })),
     section('Ton objectif et ton pourquoi',
       h('label', { class: 'label' }, 'Objectif'), objField,
       h('label', { class: 'label' }, 'Pourquoi'), whyField,

@@ -54,6 +54,8 @@ export function measureRows({ recording, kind, metrics = {}, cv = null, snrDb = 
     algoVersion,
     snrDb: isNum(snrDb) ? snrDb : null,
     context: { ...(context ?? {}) },
+    // Profils (spec profils §2) : la mesure porte le profil de sa prise ; sans profil, c'est une prise d'avant (pro).
+    ...(recording.profil ? { profil: recording.profil } : {}),
   }));
 }
 

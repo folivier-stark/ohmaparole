@@ -6,18 +6,24 @@ import { createPlayer } from '../../audio/player.js';
 import { buzz } from '../../platform/haptics.js';
 import { pickLine, humeurFor } from '../../core/louarn.js';
 import { createBulle } from '../components/fox.js';
+import { PROFIL_CHOICES, isProfil } from '../../core/profil.js';
 
-export async function render(root, { repo, content, navigate }) {
+const STEPS = 5;
+
+export async function render(root, { repo, content: initial, navigate, applyProfil }) {
+  // Le contenu change avec le profil choisi à l'étape 2 (objectif par défaut, exemples, texte de référence).
+  let content = initial;
   const state = {
     step: 1,
-    objective: await repo.getMeta('objective', content.extras.objectifDefaut),
+    profil: await repo.getMeta('profil', null),
+    objective: await repo.getMeta('objective', null),
     why: await repo.getMeta('why', ''),
     retried: false,
     take: null,
     recorder: null,
   };
   const player = createPlayer();
-  const show = (...nodes) => root.replaceChildren(h('div', { class: 'onb' }, h('p', { class: 'onb-step' }, `${state.step} / 4`), ...nodes));
+  const show = (...nodes) => root.replaceChildren(h('div', { class: 'onb' }, h('p', { class: 'onb-step' }, `${state.step} / ${STEPS}`), ...nodes));
 
   function step1() {
     state.step = 1;
@@ -26,13 +32,39 @@ export async function render(root, { repo, content, navigate }) {
       h('p', {}, 'Tu parles, tu t’écoutes, tu avances.'),
       h('p', {}, 'Un jour sans ne casse rien. Une seule règle : jamais deux jours d’affilée sans.'),
       h('p', { class: 'muted' }, 'On commence par 3 réglages, moins de 2 minutes.'),
-      h('button', { class: 'btn btn-go', onclick: step2 }, 'Commencer'),
+      h('button', { class: 'btn btn-go', onclick: stepProfil }, 'Commencer'),
+    );
+  }
+
+  /** « Ton profil », avant l'objectif (spec profils §2) : 3 choix, chacun en une ligne. */
+  function stepProfil() {
+    state.step = 2;
+    let busy = false;
+    const pick = async (value) => {
+      if (busy) return;
+      busy = true;
+      try {
+        content = await applyProfil(value);
+        state.profil = value;
+      } catch (e) {
+        console.error(e);
+        busy = false;
+        return;
+      }
+      step2();
+    };
+    show(
+      h('h1', {}, 'Ton profil'),
+      h('p', {}, 'Les exercices et les mises en situation suivent ce choix. Tu pourras le changer dans les Réglages.'),
+      h('div', { class: 'answers' }, PROFIL_CHOICES.map((c) => h('button', {
+        class: isProfil(state.profil) && state.profil === c.value ? 'btn-answer on' : 'btn-answer', onclick: () => pick(c.value),
+      }, h('span', {}, c.label), h('small', {}, c.hint)))),
     );
   }
 
   function step2() {
-    state.step = 2;
-    const obj = h('input', { class: 'field', type: 'text', value: state.objective });
+    state.step = 3;
+    const obj = h('input', { class: 'field', type: 'text', value: state.objective ?? content.extras.objectifDefaut });
     const why = h('textarea', { class: 'field', rows: 3, placeholder: 'En une phrase, avec tes mots.' });
     why.value = state.why;
     show(
@@ -54,7 +86,7 @@ export async function render(root, { repo, content, navigate }) {
   }
 
   function step3() {
-    state.step = 3;
+    state.step = 4;
     const status = h('p', { class: 'muted' }, 'Ta voix reste sur ton téléphone.');
     const actions = h('div', { class: 'stack' });
     const idle = () => actions.replaceChildren(
@@ -108,6 +140,7 @@ export async function render(root, { repo, content, navigate }) {
       await repo.saveRecording({
         id: crypto.randomUUID(), createdAt: now, dateKey: dayKey(now), kind: 'reference', milestone: 1,
         itemId: content.reference.id, sessionId: null, mimeType: res.mimeType, durationMs: res.durationMs, sizeBytes: res.blob.size,
+        profil: content.profil ?? 'pro', syllables: content.reference.syllabes,
       }, res.blob);
       step4();
     }
@@ -128,7 +161,7 @@ export async function render(root, { repo, content, navigate }) {
   }
 
   async function step4() {
-    state.step = 4;
+    state.step = 5;
     player.stop();
     const prefs = await repo.getSettings();
     const time = h('input', { class: 'field', type: 'time', value: prefs.reminderTime });

@@ -1,10 +1,12 @@
 import { h } from '../dom.js';
 import { dayKey } from '../../core/dates.js';
-import { variant, plural, FIN, FIN_PARTIELLE, voiceEndMessage } from '../../core/texts.js';
+import { variant, plural, FIN_PARTIELLE, voiceEndMessage, textsFor } from '../../core/texts.js';
+import { programGoal } from '../../core/dashboard.js';
+import { ofProfil } from '../../core/profil.js';
 import { dailyCount } from '../../core/progress.js';
 import { voiceJalonTag, calibrationRemaining, sessionsUntilControl, abPair } from '../../core/voice-plan.js';
 import {
-  STAGES, sessionCounts, souvenirs, endCelebration, stablePick, pickLine, rememberLine, stageFor, humeurFor,
+  stagesFor, sessionCounts, souvenirs, endCelebration, stablePick, pickLine, rememberLine, stageFor, humeurFor,
 } from '../../core/louarn.js';
 import { createPlayer } from '../../audio/player.js';
 import { createCompare } from '../components/compare.js';
@@ -16,17 +18,19 @@ import { createMiniSentier } from '../components/parcours.js';
  * message de fin. Montée de stade, souvenirs et thème se fêtent aussi en mode discret, sans animation.
  * Sans réplique (mode discret, ou louarn.json absent) : le message de fin d'origine, en texte simple.
  */
-async function louarnEnd({ repo, content, s, sessions, recs }) {
-  const fallback = s.completed ? variant(FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE;
+async function louarnEnd({ repo, content, s, sessions, recs, voiceRecs }) {
+  const fallback = s.completed ? variant(textsFor(content.profil).FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE;
   const counts = sessionCounts(sessions, s);
-  const stage = stageFor(counts.newCount).id;
+  const goal = programGoal(content.program);
+  const stage = stageFor(counts.newCount, goal).id;
   const [discret, fetes, vus, jour] = await Promise.all([
     repo.getMeta('renardDiscret', false), repo.getMeta('louarn.fetes', []),
     repo.getMeta('louarn.vus', []), repo.getMeta('louarn.jour', {}),
   ]);
   const c = endCelebration({
-    ...counts, session: s, souvenirs: souvenirs(sessions, recs), fetes: fetes ?? [],
-    todayKey: dayKey(Date.now()), hour: new Date().getHours(), discret, jalon: voiceJalonTag(s, recs),
+    ...counts, session: s, souvenirs: souvenirs(sessions, recs, { goal, profil: content.profil }), fetes: fetes ?? [],
+    todayKey: dayKey(Date.now()), hour: new Date().getHours(), discret, jalon: voiceJalonTag(s, voiceRecs),
+    sessionsPerWeek: content.program.sessionsPerWeek ?? 4, weeks: content.program.weeks.length, profil: content.profil,
   });
   const lines = content.louarn?.repliques ?? [];
   const writes = [];
@@ -50,7 +54,7 @@ async function louarnEnd({ repo, content, s, sessions, recs }) {
     // Maquette §5.4 : le stade grandit, son nom, puis la bulle (pointe vers le renard).
     nodes.push(h('div', { class: 'lo-bulle-wrap lo-bulle-colonne' },
       createStageUp({ from: c.stage.from, to: c.stage.to, animate: !discret }),
-      h('p', { class: 'lo-stade-nom' }, STAGES[c.stage.to - 1].nom),
+      h('p', { class: 'lo-stade-nom' }, stagesFor(goal)[c.stage.to - 1].nom),
       texte ? h('p', { class: 'lo-bulle' }, texte) : h('p', { class: 'end-msg' }, fallback)));
   } else if (texte) {
     nodes.push(createBulle({
@@ -78,13 +82,15 @@ export async function render(root, { repo, content, navigate, params }) {
   if (!s) { navigate('/home'); return; }
   const [recs, sessions] = await Promise.all([repo.listRecordings(), repo.listSessions()]);
   const mine = recs.filter((r) => r.sessionId === s.id);
+  // La mesure de la voix est propre au profil, depuis le dernier changement ; les souvenirs, eux, ne se perdent pas.
+  const voiceRecs = ofProfil(recs, content.profil, content.profilSince);
   const cleanups = [];
   let louarn;
   try {
-    louarn = await louarnEnd({ repo, content, s, sessions, recs });
+    louarn = await louarnEnd({ repo, content, s, sessions, recs, voiceRecs });
   } catch (e) {
     console.error(e);
-    louarn = [h('p', { class: 'end-msg' }, s.completed ? variant(FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE)];
+    louarn = [h('p', { class: 'end-msg' }, s.completed ? variant(textsFor(content.profil).FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE)];
   }
   const children = [h('div', { class: 'dot-fill' }), ...louarn];
 
@@ -99,10 +105,10 @@ export async function render(root, { repo, content, navigate, params }) {
   if (s.voiceCheck) {
     const validTakes = mine.filter((r) => r.kind === 'reference' && r.voiceCheck).length;
     children.push(h('p', { class: 'milestone' }, voiceEndMessage({
-      voiceCheck: s.voiceCheck, validTakes, calibrationRemaining: calibrationRemaining(recs),
-      untilControl: sessionsUntilControl(recs, dailyCount(sessions)),
+      voiceCheck: s.voiceCheck, validTakes, calibrationRemaining: calibrationRemaining(voiceRecs),
+      untilControl: sessionsUntilControl(voiceRecs, dailyCount(sessions)),
     })));
-    const pair = s.voiceCheck === 'controle' && validTakes >= 2 ? abPair(recs) : null;
+    const pair = s.voiceCheck === 'controle' && validTakes >= 2 ? abPair(voiceRecs) : null;
     if (pair) {
       const cmp = await createCompare({ repo, a: pair.a, b: pair.b, labelA: pair.labelA, labelB: pair.labelB });
       if (cmp) { children.push(cmp.el); cleanups.push(cmp.destroy); }

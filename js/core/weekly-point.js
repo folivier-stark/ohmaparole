@@ -86,6 +86,7 @@ export function spontaneRows(recording, res, { kind = 'spontane', context = {} }
     algoVersion,
     snrDb: isNum(a.snrDb) ? a.snrDb : null,
     context: { ...(typeof a.leadSilent === 'boolean' ? { leadSilent: a.leadSilent } : {}), ...context },
+    ...(recording.profil ? { profil: recording.profil } : {}),
   }));
 }
 

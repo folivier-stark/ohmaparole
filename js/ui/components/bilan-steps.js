@@ -107,9 +107,9 @@ export function createGrille({ step, onGrille, onDone }) {
     if (!it) { queueMicrotask(() => { onGrille({ ...answers }); onDone(); }); return; }
     const pick = (v) => { answers[it.id] = v; i += 1; render(); };
     show(el,
-      h('p', { class: 'label' }, `Tes gestes en RDV · ${i + 1} sur ${step.items.length}`),
+      h('p', { class: 'label' }, `${step.title ?? 'Tes gestes en RDV'} · ${i + 1} sur ${step.items.length}`),
       h('h2', { class: 'step-title' }, it.competence),
-      h('p', { class: 'muted small' }, 'Lors de tes derniers RDV ou mises en situation, ce qui te ressemble le plus :'),
+      h('p', { class: 'muted small' }, step.intro ?? 'Lors de tes derniers RDV ou mises en situation, ce qui te ressemble le plus :'),
       h('div', { class: 'stack' }, it.niveaux.map((txt, k) => h('button', { class: 'chip grille-chip', onclick: () => pick(k + 1) },
         h('strong', {}, `Repère ${k + 1}`), ' · ', txt))),
       h('button', { class: 'btn-link', onclick: () => pick('no') }, 'Non observé'));

@@ -50,7 +50,7 @@ export function createVoiceCheck({ step, saveTake, onDone }) {
       h('p', { class: 'muted small' }, total === 1 ? 'Une lecture. Avant, 2 secondes de silence. Pas de bip.' : 'Trois lectures du même texte. Avant chacune, 2 secondes de silence. Pas de bip.'),
       h('p', { class: 'say small' }, step.text),
       btn(total === 1 ? 'Je suis prêt' : `${takeLabel()} · Je suis prêt`, startTake));
-    if (!paused && total > 1) speak('Téléphone posé à 30 centimètres. Lis comme si tu parlais à un prospect.');
+    if (!paused && total > 1) speak(step.speakTake ?? 'Téléphone posé à 30 centimètres. Lis comme si tu parlais à un prospect.');
   }
 
   function ready(message = null) {

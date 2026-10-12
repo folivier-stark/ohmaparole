@@ -1,6 +1,7 @@
 import { h } from '../dom.js';
 import { prochePairs, procheScore, buildBilanReport } from '../../core/evaluation.js';
 import { bilansDone } from '../../core/bilan-plan.js';
+import { ofProfil, isNeutral } from '../../core/profil.js';
 import { createPlayer } from '../../audio/player.js';
 
 const QUESTIONS = [
@@ -16,10 +17,13 @@ const QUESTIONS = [
 export async function render(root, { repo, content, navigate, params }) {
   const s = await repo.getSession(params[0]);
   if (!s?.bilan || s.bilan.kind !== 'bilan') { navigate('/home', { replace: true }); return; }
-  const [sessions, recordings] = await Promise.all([repo.listSessions(), repo.listRecordings()]);
+  const mine = (rows) => ofProfil(rows, content.profil, content.profilSince);
+  const neutral = isNeutral(content.profil);
+  const [sessions, recordings] = await Promise.all([repo.listSessions(), repo.listRecordings().then(mine)]);
   const draft = s.bilan.procheDraft ?? (() => {
     const seed = crypto.randomUUID();
-    return { seed, pairs: prochePairs({ recordings, bilans: bilansDone(sessions), current: s, seed }) };
+    const bilans = bilansDone(mine(sessions));
+    return { seed, pairs: prochePairs({ recordings, bilans, current: s, seed, refId: content.reference.id }) };
   })();
   if (!s.bilan.procheDraft) await repo.saveSession({ ...s, bilan: { ...s.bilan, procheDraft: draft } });
   const player = createPlayer();
@@ -40,7 +44,7 @@ export async function render(root, { repo, content, navigate, params }) {
     h('p', {}, 'Tends ton téléphone à un proche. Rien ne sort de l’appareil.'),
     h('div', { class: 'card' },
       h('p', { class: 'label' }, 'Pour le proche'),
-      h('p', {}, `Tu vas écouter ${draft.pairs.length} paires d’enregistrements de Fred, le même texte à chaque fois. Pour chaque paire, deux questions. Réponds au feeling, sans chercher la bonne réponse.`)),
+      h('p', {}, `Tu vas écouter ${draft.pairs.length} paires d’enregistrements${neutral ? '' : ' de Fred'}, le même texte à chaque fois. Pour chaque paire, deux questions. Réponds au feeling, sans chercher la bonne réponse.`)),
     h('button', { class: 'btn btn-go', onclick: pair }, 'On commence'),
     h('a', { class: 'btn-link', href: `#/bilan/${s.id}` }, 'Plus tard'));
 
@@ -78,11 +82,14 @@ export async function render(root, { repo, content, navigate, params }) {
     const updated = { ...fresh, bilan: { ...fresh.bilan, proche: { seed: draft.seed, pairs: draft.pairs, answers, ...score, dateKey: s.dateKey } } };
     const [ss, recs, ms] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
     const all = ss.map((x) => (x.id === updated.id ? updated : x));
-    updated.bilan.report = buildBilanReport({ session: updated, sessions: all, recordings: recs, measures: ms, todayKey: s.dateKey, lines: content.mesure ?? {} });
+    updated.bilan.report = buildBilanReport({
+      session: updated, sessions: all, recordings: mine(recs), measures: mine(ms), todayKey: s.dateKey, lines: content.mesure ?? {},
+      profil: content.profil, since: content.profilSince,
+    });
     await repo.saveSession(updated);
     screen(
       h('h1', {}, 'Merci !'),
-      h('p', {}, 'Tu peux rendre le téléphone à Fred.'),
+      h('p', {}, neutral ? 'Tu peux rendre le téléphone.' : 'Tu peux rendre le téléphone à Fred.'),
       h('a', { class: 'btn btn-go', href: `#/bilan/${s.id}` }, 'Voir le bilan'));
   }
 

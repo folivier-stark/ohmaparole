@@ -1,6 +1,7 @@
 import { h } from '../dom.js';
 import { longDateFr } from '../../core/dates.js';
 import { buildBilanReport } from '../../core/evaluation.js';
+import { ofProfil } from '../../core/profil.js';
 import { pickLine } from '../../core/louarn.js';
 import { noiseBand } from '../components/chart.js';
 import { createBulle } from '../components/fox.js';
@@ -50,7 +51,11 @@ export async function render(root, { repo, content, navigate, params }) {
   let report = s.bilan.report;
   if (!report) {
     const [sessions, recordings, measures] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
-    report = buildBilanReport({ session: s, sessions, recordings, measures, todayKey: s.dateKey, lines: content.mesure ?? {} });
+    const mine = (rows) => ofProfil(rows, content.profil, content.profilSince);
+    report = buildBilanReport({
+      session: s, sessions, recordings: mine(recordings), measures: mine(measures), todayKey: s.dateKey, lines: content.mesure ?? {},
+      profil: content.profil, since: content.profilSince,
+    });
   }
   // Louarn : une bulle sobre, seulement s'il a une réplique de bilan (G §2.2) ; sinon il se tait.
   const line = pickLine(content.louarn?.repliques ?? [], { moment: 'bilan', dayKey: s.dateKey });

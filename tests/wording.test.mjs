@@ -49,3 +49,20 @@ test('aucun mot interdit dans les phrases de motivation, les garde-fous (extras.
   for (const t of [...extraTexts, ...louarn]) assert.doesNotMatch(t, FORBIDDEN, t);
   assert.ok(extras.motivations.includes('Une séance sautée ne compte pas. Celle d’aujourd’hui, si.'));
 });
+
+test('aucun mot interdit dans les nouveaux contenus des profils Études et Quotidien', () => {
+  const extrasQ = JSON.parse(read('content/fr/extras-quotidien.json'));
+  const louarnQ = JSON.parse(read('content/fr/louarn-quotidien.json')).repliques.map((l) => l.texte);
+  const mesureQ = JSON.parse(read('content/fr/mesure-quotidien.json'));
+  const programs = ['etudes', 'quotidien'].map((p) => JSON.parse(read(`content/program-${p}.json`)));
+  const consignesQ = JSON.parse(read('content/fr/exercises.json')).consignesQuotidien;
+  // Comme pour extras.json et louarn.json : les textes que l'appli affiche hors exercices.
+  const texts = [
+    ...strings({ ...extrasQ, sources: '' }), ...louarnQ, ...strings({ ...mesureQ, source: '', convention: '' }),
+    ...strings(consignesQ), ...programs.flatMap((p) => [...p.weeks.map((w) => w.theme), ...p.blocs.map((b) => b.nom)]),
+  ];
+  assert.ok(texts.length > 100);
+  // « une série » (un film ou une série) : une série télé, pas une série de jours. Rédigé par l'expert, gardé.
+  const SERIE_TELE = 'Conseille un livre, un film ou une série à un ami, et dis-lui pourquoi.';
+  for (const t of texts) assert.doesNotMatch(t === SERIE_TELE ? t.replace('une série', 'un feuilleton') : t, FORBIDDEN, t);
+});

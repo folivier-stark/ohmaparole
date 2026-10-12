@@ -1,4 +1,5 @@
 // Le Parcours (expert-gamification.md §4.2, maquette §5.2) : Louarn, le sentier de 18 pierres, les souvenirs.
+// Profils Études et Quotidien : 12 pierres sur 2 blocs, nommés par le programme (program.blocs).
 // Sentier en HTML (listes ordonnées) plutôt qu'en SVG : lisible au lecteur d'écran, lacets en CSS (louarn.css).
 import { h } from '../dom.js';
 import { BLOCS, SESSIONS_PER_THEME, THEMES_PER_BLOC, THEMES_PER_CYCLE, stageFor, nextStage, themePosition } from '../../core/louarn.js';
@@ -75,8 +76,8 @@ export function createParcours({ dailyCount = 0, program, souvenirs = [], lines 
   const { spw, weeks, name } = shape(program);
   const goal = spw * weeks;
   const n = Math.max(0, Math.floor(Number(dailyCount) || 0));
-  const stage = stageFor(n);
-  const next = nextStage(n);
+  const stage = stageFor(n, goal);
+  const next = nextStage(n, goal);
   const { pos, states, here } = stoneStates(n, spw, weeks);
 
   const head = h('div', { class: 'lo-parcours-tete' },
@@ -93,7 +94,7 @@ export function createParcours({ dailyCount = 0, program, souvenirs = [], lines 
     const from = b * THEMES_PER_BLOC + 1;
     const themes = Array.from({ length: Math.min(THEMES_PER_BLOC, weeks - from + 1) }, (_, i) => from + i);
     return h('section', { class: `lo-bloc lo-teinte-${b + 1}` },
-      h('p', { class: 'lo-bloc-nom' }, BLOCS[b]?.nom ?? `Bloc ${b + 1}`),
+      h('p', { class: 'lo-bloc-nom' }, program?.blocs?.[b]?.nom ?? BLOCS[b]?.nom ?? `Bloc ${b + 1}`),
       h('ol', { class: 'lo-pierres', start: from },
         themes.map((t) => stone({
           theme: t, nom: name(t), state: states[t - 1], louarn: t === here, doneInTheme: pos.doneInTheme, spw,
