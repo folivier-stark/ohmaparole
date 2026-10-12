@@ -1,0 +1,244 @@
+{
+  "lang": "fr",
+  "source": "docs/experts/contenu-mesure-quotidien.md",
+  "reference": {
+    "id": "fr.REFQ1",
+    "titre": "Texte de référence",
+    "texte": "Bonjour, je vais me présenter rapidement. J'aime beaucoup marcher le long de la rivière, surtout le dimanche matin. Je cuisine aussi pour mes amis ou ma famille, souvent des recettes simples. En ce moment, je lis un roman policier le soir, avant de dormir. Et toi, qu'est-ce qui te fait plaisir pendant une journée tranquille ?",
+    "syllabes": 84
+  },
+  "referenceSyllabes": 84,
+  "convention": "1 syllabe = 1 voyelle prononcée. Le e final non accentué (-e, -es) ne compte pas, sauf s'il est la seule voyelle du mot (je, me, te, de, le, ce) ; tout autre e muet compte, même à l'intérieur d'un mot (sa-me-di = 3, lon-gue-ment = 3).\nLiaisons, enchaînements et élisions écrites (l', j', d', qu', t') ne changent rien ; i, u ou ou suivis d'une voyelle font une seule syllabe avec elle (cui-sine = 2, quar-tier = 2, jouer = 1), et un sigle se compte lettre par lettre.",
+  "textesInedits": [
+    {
+      "id": "fr.TQA",
+      "titre": "Le basket et la guitare",
+      "texte": "Salut, je commence par me décrire simplement. Le samedi, je retrouve parfois des copains pour jouer au basket. J'adore aussi dessiner des maisons imaginaires sur un petit carnet. Cette année, j'apprends la guitare avec une voisine très patiente. Et toi, quelle activité te donne envie de sortir du lit le matin ?",
+      "syllabes": 84
+    },
+    {
+      "id": "fr.TQB",
+      "titre": "Le chien et la chorale",
+      "texte": "Bonsoir, je te raconte comment je passe mes soirées. Je promène longuement mon chien dans la forêt, même au cœur de l'hiver. J'écoute aussi des chansons françaises en épluchant les légumes du dîner. Depuis la rentrée, je chante dans une chorale de quartier, chaque jeudi. Et toi, quelle est la dernière histoire qui t'a fait éclater de rire ?",
+      "syllabes": 84
+    },
+    {
+      "id": "fr.TQC",
+      "titre": "La piscine et le bois",
+      "texte": "Bonjour, voici en résumé ce qui m'occupe. Je nage à la piscine municipale, en général avec une amie. Le week-end, je fabrique des petits meubles avec du bois récupéré. Ces derniers temps, je découvre les jeux de société avec mes cousins. Et toi, comment aimes-tu te détendre après une semaine bien chargée ?",
+      "syllabes": 84
+    }
+  ],
+  "ecoutesReservees": [
+    {
+      "id": "fr.ERQ1",
+      "titre": "Le chat de la voisine",
+      "passage": "La semaine dernière, le chat de ma voisine a disparu pendant trois jours. Elle a collé des affiches dans tout le quartier, avec une photo de lui endormi sur le canapé. Moi, j'ai fait le tour des jardins avec une lampe de poche, le soir. Finalement, c'est le boulanger qui l'a retrouvé, enfermé dans son garage, derrière des sacs de farine. Il avait juste un peu maigri. Depuis, ma voisine lui a acheté un collier avec son numéro de téléphone.",
+      "faitsCles": [
+        "Le chat a disparu pendant trois jours.",
+        "C'est le boulanger qui l'a retrouvé, enfermé dans son garage.",
+        "La voisine lui a acheté un collier avec son numéro de téléphone."
+      ]
+    },
+    {
+      "id": "fr.ERQ2",
+      "titre": "Le potager du grand-père",
+      "passage": "Mon grand-père a un potager derrière sa maison, juste à côté de la voie ferrée. Cette année, il a planté des tomates, des haricots et des courgettes. Les courgettes ont tellement poussé qu'il en a donné à tous les voisins de la rue. Un matin, il a trouvé ses salades grignotées : c'était un hérisson, et il l'a laissé tranquille. Il arrose le soir avec l'eau de pluie, qu'il garde dans un vieux tonneau. Ma petite cousine vient l'aider le mercredi.",
+      "faitsCles": [
+        "Il a donné des courgettes à tous les voisins de la rue.",
+        "Ses salades ont été grignotées par un hérisson.",
+        "Il arrose avec l'eau de pluie, gardée dans un vieux tonneau."
+      ]
+    },
+    {
+      "id": "fr.ERQ3",
+      "titre": "Le train du vendredi soir",
+      "passage": "Vendredi soir, je rentrais chez mes parents en train. Peu après le départ, on s'est arrêtés en pleine campagne : un arbre était tombé sur la voie. Le contrôleur est passé avec des bouteilles d'eau et des petits gâteaux. J'ai discuté avec une dame qui allait voir sa petite-fille pour la première fois. Au bout de deux heures, on a pu avancer jusqu'à la gare suivante, et on a fini le trajet en car. Je suis arrivé à minuit, et ma mère m'attendait avec une soupe chaude.",
+      "faitsCles": [
+        "Le train s'est arrêté parce qu'un arbre était tombé sur la voie.",
+        "Après deux heures d'arrêt, le trajet s'est fini en car.",
+        "Arrivé à minuit, il a été accueilli par sa mère avec une soupe chaude."
+      ]
+    }
+  ],
+  "questionsSpontanees": [
+    {
+      "id": "fr.QSQ01",
+      "texte": "Raconte ton meilleur souvenir de vacances, comme si on y était avec toi."
+    },
+    {
+      "id": "fr.QSQ02",
+      "texte": "Explique les règles de ton jeu ou de ton sport préféré à quelqu'un qui n'y a jamais joué."
+    },
+    {
+      "id": "fr.QSQ03",
+      "texte": "Décris un objet auquel tu tiens, et raconte d'où il vient."
+    },
+    {
+      "id": "fr.QSQ04",
+      "texte": "Conseille un livre, un film ou une série à un ami, et dis-lui pourquoi."
+    },
+    {
+      "id": "fr.QSQ05",
+      "texte": "Raconte une chose que tu as apprise récemment, et comment tu l'as apprise."
+    },
+    {
+      "id": "fr.QSQ06",
+      "texte": "Explique comment préparer ton plat préféré à quelqu'un qui ne cuisine jamais."
+    },
+    {
+      "id": "fr.QSQ07",
+      "texte": "Décris l'endroit où tu te sens le mieux, pour qu'on puisse l'imaginer."
+    },
+    {
+      "id": "fr.QSQ08",
+      "texte": "Un ami hésite à se lancer dans une nouvelle activité. Donne-lui ton avis."
+    },
+    {
+      "id": "fr.QSQ09",
+      "texte": "Raconte comment tu as rencontré une personne qui compte pour toi."
+    },
+    {
+      "id": "fr.QSQ10",
+      "texte": "Explique à un enfant ce que tu fais pendant une journée ordinaire."
+    },
+    {
+      "id": "fr.QSQ11",
+      "texte": "Si tu pouvais changer une chose dans ta ville ou ton quartier, laquelle choisirais-tu, et pourquoi ?"
+    },
+    {
+      "id": "fr.QSQ12",
+      "texte": "Explique à quelqu'un une chose que tu sais bien faire, étape par étape."
+    }
+  ],
+  "repliquesEclair": [
+    {
+      "id": "fr.REQ01",
+      "replique": "Allez, viens ce soir. Tout le monde sera là, il ne manque que toi.",
+      "critere1": "Mon non tient en une phrase.",
+      "critere2": "J'ai donné une seule raison, ou aucune."
+    },
+    {
+      "id": "fr.REQ02",
+      "replique": "Ton calcul, là, tu peux m'expliquer d'où il sort ?",
+      "critere1": "J'ai nommé au moins deux étapes, dans l'ordre.",
+      "critere2": "J'ai fini en redisant le résultat en une phrase."
+    },
+    {
+      "id": "fr.REQ03",
+      "replique": "Tu as encore oublié de sortir les poubelles. C'est toujours moi qui le fais.",
+      "critere1": "J'ai reconnu le fait avant de m'expliquer.",
+      "critere2": "J'ai proposé une solution concrète en une phrase."
+    },
+    {
+      "id": "fr.REQ04",
+      "replique": "Je t'écoute. Qu'est-ce que tu voulais me demander ?",
+      "critere1": "Ma demande tient en une phrase.",
+      "critere2": "J'ai précisé pour quand, ou pour combien de temps."
+    },
+    {
+      "id": "fr.REQ05",
+      "replique": "Franchement, ton idée ne tient pas debout.",
+      "critere1": "J'ai posé une question sur ce qui coince avant de défendre mon idée.",
+      "critere2": "Je n'ai dit ni « désolé » ni « pardon »."
+    },
+    {
+      "id": "fr.REQ06",
+      "replique": "Alors, raconte : c'était comment, ton week-end ?",
+      "critere1": "Ma première phrase dit l'essentiel.",
+      "critere2": "J'ai cité au moins un détail précis : un lieu, un nom ou un moment."
+    },
+    {
+      "id": "fr.REQ07",
+      "replique": "Je ne sais pas, je suis fatigué en ce moment. Tout m'agace.",
+      "critere1": "J'ai redit avec mes mots ce que j'ai entendu, avant tout conseil.",
+      "critere2": "J'ai fini par une question."
+    },
+    {
+      "id": "fr.REQ08",
+      "replique": "Et toi, tu en penses quoi ? Tu n'as rien dit depuis le début.",
+      "critere1": "J'ai donné mon avis en deux phrases au plus.",
+      "critere2": "Ma première phrase n'est ni une excuse ni « je ne sais pas »."
+    },
+    {
+      "id": "fr.REQ09",
+      "replique": "Qu'est-ce qui t'a donné envie de faire ce que tu fais aujourd'hui ?",
+      "critere1": "J'ai donné une raison concrète : un fait, un souvenir ou une personne.",
+      "critere2": "Ma dernière phrase est posée, sans « voilà » ni « enfin bref »."
+    },
+    {
+      "id": "fr.REQ10",
+      "replique": "Je ne comprends pas bien ce que tu attends de moi.",
+      "critere1": "J'ai redit ma demande en une phrase.",
+      "critere2": "J'ai dit pour quand."
+    },
+    {
+      "id": "fr.REQ11",
+      "replique": "Tu pourrais arroser mes plantes toute la semaine prochaine ?",
+      "critere1": "Ma réponse, oui, non ou à condition, arrive dans la première phrase.",
+      "critere2": "J'ai posé une question pratique avant de m'engager."
+    },
+    {
+      "id": "fr.REQ12",
+      "replique": "Attends, laisse-moi finir. Tu me coupes tout le temps.",
+      "critere1": "J'ai reconnu en une phrase, sans me justifier.",
+      "critere2": "J'ai rendu la parole avec une phrase courte : « vas-y », « je t'écoute »."
+    }
+  ],
+  "autoGrille": [
+    {
+      "id": "fr.GQ1",
+      "competence": "Prendre la parole",
+      "niveaux": [
+        "J'attends qu'on me donne la parole, ou je commence par une excuse.",
+        "Je prends la parole de moi-même, mais l'idée arrive après un détour.",
+        "Je prends la parole, ma première phrase dit l'idée, puis je m'arrête."
+      ]
+    },
+    {
+      "id": "fr.GQ2",
+      "competence": "Écouter",
+      "niveaux": [
+        "Je coupe la parole, ou je réponds avant la fin de sa phrase.",
+        "Je laisse finir, puis je réponds sans redire ce que j'ai compris.",
+        "Je laisse finir, je redis en une phrase, puis « c'est bien ça ? »."
+      ]
+    },
+    {
+      "id": "fr.GQ3",
+      "competence": "Dire non",
+      "niveaux": [
+        "Je dis oui ou « on verra » alors que je pense non.",
+        "Je dis non, puis deux justifications ou plus.",
+        "Non en une phrase, une raison au plus, puis silence."
+      ]
+    },
+    {
+      "id": "fr.GQ4",
+      "competence": "Demander",
+      "niveaux": [
+        "Je tourne autour de ma demande, ou je laisse l'autre la deviner.",
+        "Ma demande est claire, mais elle arrive après une longue introduction.",
+        "Ma demande en une phrase, quoi et pour quand, puis j'écoute la réponse."
+      ]
+    },
+    {
+      "id": "fr.GQ5",
+      "competence": "Raconter",
+      "niveaux": [
+        "Les faits viennent dans le désordre ; l'autre pose des questions pour suivre.",
+        "Début, milieu, fin dans l'ordre, mais l'essentiel arrive tard.",
+        "L'essentiel en une phrase, les détails dans l'ordre, puis je m'arrête."
+      ]
+    },
+    {
+      "id": "fr.GQ6",
+      "competence": "Rester posé",
+      "niveaux": [
+        "Face à un reproche, ma voix monte ou je coupe l'autre.",
+        "Ma voix reste stable, mais je me justifie longuement.",
+        "Je reconnais le fait, voix stable, puis une proposition en une phrase."
+      ]
+    }
+  ]
+}

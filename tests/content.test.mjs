@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { loadTestContent } from './helpers.mjs';
 
 const c = loadTestContent();
-const by = (b) => c.items.filter((i) => i.bloc === b);
+// Les exercices du profil pro ont un id à une lettre (fr.A01, fr.L13…) ; ceux des profils non pro en ont
+// deux (fr.QA01, fr.EL04…), voir tests/content-profils.test.mjs.
+const isProItem = (i) => /^fr\.[A-Z]\d/.test(i.id);
+const by = (b) => c.items.filter((i) => i.bloc === b && isProItem(i));
 
 test('volumes attendus', () => {
   assert.equal(by('echauffement').length, 12);

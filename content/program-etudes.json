@@ -1,0 +1,236 @@
+{
+  "profil": "etudes",
+  "sessionsPerWeek": 4,
+  "blocs": [
+    {
+      "id": 1,
+      "nom": "Fondations"
+    },
+    {
+      "id": 2,
+      "nom": "Prendre sa place"
+    }
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "theme": "Ouvrir, ralentir",
+      "articulation": [
+        "A01",
+        "A02",
+        "QA01",
+        "QA02"
+      ],
+      "ecoute": [
+        "QL01",
+        "QL02"
+      ],
+      "posture": [
+        "QP01",
+        "QP07"
+      ]
+    },
+    {
+      "week": 2,
+      "theme": "Consonnes qui claquent",
+      "articulation": [
+        "A03",
+        "A04",
+        "A05",
+        "QA03",
+        "QA04"
+      ],
+      "ecoute": [
+        "QL03",
+        "QL04"
+      ],
+      "posture": [
+        "QP02",
+        "QP03"
+      ]
+    },
+    {
+      "week": 3,
+      "theme": "Sifflantes et chuintantes",
+      "articulation": [
+        "A06",
+        "A07",
+        "A08",
+        "A09",
+        "QA05",
+        "QA06",
+        "QA07"
+      ],
+      "ecoute": [
+        "QL05",
+        "QL06"
+      ],
+      "posture": [
+        "QP04",
+        "QP08"
+      ]
+    },
+    {
+      "week": 4,
+      "theme": "Groupes difficiles",
+      "articulation": [
+        "A10",
+        "A11",
+        "A12",
+        "QA08",
+        "QA09",
+        "QA10"
+      ],
+      "ecoute": [
+        "QL07",
+        "QL08"
+      ],
+      "posture": [
+        "QP05",
+        "QP09"
+      ]
+    },
+    {
+      "week": 5,
+      "theme": "Phrases qui portent",
+      "articulation": [
+        "A13",
+        "QA11",
+        "QA12"
+      ],
+      "ecoute": [
+        "QL09",
+        "QL10"
+      ],
+      "posture": [
+        "QP06",
+        "QP11"
+      ]
+    },
+    {
+      "week": 6,
+      "theme": "Intégration",
+      "articulation": [
+        "A14",
+        "QA13",
+        "QA14"
+      ],
+      "ecoute": [
+        "QL11",
+        "QL12"
+      ],
+      "posture": [
+        "QP10",
+        "QP12"
+      ]
+    },
+    {
+      "week": 7,
+      "theme": "L’exposé",
+      "articulation": [
+        "EA01",
+        "EA02",
+        "EA03",
+        "EA04"
+      ],
+      "ecoute": [
+        "EL01",
+        "EL02"
+      ],
+      "posture": [
+        "EP01",
+        "EP02"
+      ]
+    },
+    {
+      "week": 8,
+      "theme": "Répondre aux questions et au jury",
+      "articulation": [
+        "EA05",
+        "EA06",
+        "EA07",
+        "EA08"
+      ],
+      "ecoute": [
+        "EL03",
+        "EL04"
+      ],
+      "posture": [
+        "EP03",
+        "EP04"
+      ]
+    },
+    {
+      "week": 9,
+      "theme": "L’entretien de stage ou d’alternance",
+      "articulation": [
+        "EA09",
+        "EA10",
+        "EA11",
+        "EA12"
+      ],
+      "ecoute": [
+        "EL05",
+        "EL06"
+      ],
+      "posture": [
+        "EP05",
+        "EP06"
+      ]
+    },
+    {
+      "week": 10,
+      "theme": "Défendre son idée en projet de groupe",
+      "articulation": [
+        "EA13",
+        "EA14",
+        "EA15",
+        "EA16"
+      ],
+      "ecoute": [
+        "EL07",
+        "EL08"
+      ],
+      "posture": [
+        "EP07",
+        "EP08"
+      ]
+    },
+    {
+      "week": 11,
+      "theme": "Se présenter en 60 s",
+      "articulation": [
+        "EA17",
+        "EA18",
+        "EA19",
+        "EA20"
+      ],
+      "ecoute": [
+        "EL09",
+        "EL10"
+      ],
+      "posture": [
+        "EP09",
+        "EP10"
+      ]
+    },
+    {
+      "week": 12,
+      "theme": "Parler sur le terrain",
+      "articulation": [
+        "EA21",
+        "EA22",
+        "EA23",
+        "EA24"
+      ],
+      "ecoute": [
+        "EL11",
+        "EL12"
+      ],
+      "posture": [
+        "EP11",
+        "EP12"
+      ]
+    }
+  ]
+}

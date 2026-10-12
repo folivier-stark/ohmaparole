@@ -1,0 +1,236 @@
+{
+  "profil": "quotidien",
+  "sessionsPerWeek": 4,
+  "blocs": [
+    {
+      "id": 1,
+      "nom": "Fondations"
+    },
+    {
+      "id": 2,
+      "nom": "Confiance au quotidien"
+    }
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "theme": "Ouvrir, ralentir",
+      "articulation": [
+        "A01",
+        "A02",
+        "QA01",
+        "QA02"
+      ],
+      "ecoute": [
+        "QL01",
+        "QL02"
+      ],
+      "posture": [
+        "QP01",
+        "QP07"
+      ]
+    },
+    {
+      "week": 2,
+      "theme": "Consonnes qui claquent",
+      "articulation": [
+        "A03",
+        "A04",
+        "A05",
+        "QA03",
+        "QA04"
+      ],
+      "ecoute": [
+        "QL03",
+        "QL04"
+      ],
+      "posture": [
+        "QP02",
+        "QP03"
+      ]
+    },
+    {
+      "week": 3,
+      "theme": "Sifflantes et chuintantes",
+      "articulation": [
+        "A06",
+        "A07",
+        "A08",
+        "A09",
+        "QA05",
+        "QA06",
+        "QA07"
+      ],
+      "ecoute": [
+        "QL05",
+        "QL06"
+      ],
+      "posture": [
+        "QP04",
+        "QP08"
+      ]
+    },
+    {
+      "week": 4,
+      "theme": "Groupes difficiles",
+      "articulation": [
+        "A10",
+        "A11",
+        "A12",
+        "QA08",
+        "QA09",
+        "QA10"
+      ],
+      "ecoute": [
+        "QL07",
+        "QL08"
+      ],
+      "posture": [
+        "QP05",
+        "QP09"
+      ]
+    },
+    {
+      "week": 5,
+      "theme": "Phrases qui portent",
+      "articulation": [
+        "A13",
+        "QA11",
+        "QA12"
+      ],
+      "ecoute": [
+        "QL09",
+        "QL10"
+      ],
+      "posture": [
+        "QP06",
+        "QP11"
+      ]
+    },
+    {
+      "week": 6,
+      "theme": "Intégration",
+      "articulation": [
+        "A14",
+        "QA13",
+        "QA14"
+      ],
+      "ecoute": [
+        "QL11",
+        "QL12"
+      ],
+      "posture": [
+        "QP10",
+        "QP12"
+      ]
+    },
+    {
+      "week": 7,
+      "theme": "Oser parler en groupe",
+      "articulation": [
+        "QA15",
+        "QA16",
+        "QA17",
+        "QA18"
+      ],
+      "ecoute": [
+        "QL13",
+        "QL14"
+      ],
+      "posture": [
+        "QP13",
+        "QP14"
+      ]
+    },
+    {
+      "week": 8,
+      "theme": "Dire un désaccord calmement",
+      "articulation": [
+        "QA19",
+        "QA20",
+        "QA21",
+        "QA22"
+      ],
+      "ecoute": [
+        "QL15",
+        "QL16"
+      ],
+      "posture": [
+        "QP15",
+        "QP16"
+      ]
+    },
+    {
+      "week": 9,
+      "theme": "Demander clairement",
+      "articulation": [
+        "QA23",
+        "QA24",
+        "QA25",
+        "QA26"
+      ],
+      "ecoute": [
+        "QL17",
+        "QL18"
+      ],
+      "posture": [
+        "QP17",
+        "QP18"
+      ]
+    },
+    {
+      "week": 10,
+      "theme": "Raconter une histoire",
+      "articulation": [
+        "QA27",
+        "QA28",
+        "QA29",
+        "QA30"
+      ],
+      "ecoute": [
+        "QL19",
+        "QL20"
+      ],
+      "posture": [
+        "QP19",
+        "QP20"
+      ]
+    },
+    {
+      "week": 11,
+      "theme": "Écouter vraiment un proche",
+      "articulation": [
+        "QA31",
+        "QA32",
+        "QA33",
+        "QA34"
+      ],
+      "ecoute": [
+        "QL21",
+        "QL22"
+      ],
+      "posture": [
+        "QP21",
+        "QP22"
+      ]
+    },
+    {
+      "week": 12,
+      "theme": "Prendre la parole devant les autres",
+      "articulation": [
+        "QA35",
+        "QA36",
+        "QA37",
+        "QA38"
+      ],
+      "ecoute": [
+        "QL23",
+        "QL24"
+      ],
+      "posture": [
+        "QP23",
+        "QP24"
+      ]
+    }
+  ]
+}
