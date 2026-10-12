@@ -10,6 +10,7 @@
 import { pickLeastRecent } from './pick.js';
 import { ALGO_VERSION, median } from './acoustics.js';
 import { plural } from './texts.js';
+import { isNeutral } from './profil.js';
 
 export const POINT_EVERY = 4;
 export const CYCLE_SESSIONS = 72;
@@ -20,6 +21,9 @@ export const READY_OPTIONS = Object.freeze([
   Object.freeze({ value: 'pret', label: 'Prêt' }),
 ]);
 export const READY_QUESTION = 'Si tu avais un RDV demain :';
+export const READY_QUESTION_NEUTRE = 'Si tu avais un moment important demain :';
+/** La question du tap « Prêt », selon le profil (neutre pour Études et Quotidien). */
+export const readyQuestion = (profil) => (isNeutral(profil) ? READY_QUESTION_NEUTRE : READY_QUESTION);
 
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x);
 const isCountedDaily = (s) => s?.counted === true && (s.type === 'daily' || s.type === 'comeback');
@@ -44,18 +48,18 @@ export function weeklyPointDue({ sessionNumber, sessions = [], voiceCheck = null
   return { theme, format: done.length % 2 === 0 ? 'spontane' : 'eclair' };
 }
 
-const cycleOf = (n) => Math.floor((Math.max(1, Number(n) || 1) - 1) / CYCLE_SESSIONS) + 1;
+const cycleOf = (n, per = CYCLE_SESSIONS) => Math.floor((Math.max(1, Number(n) || 1) - 1) / per) + 1;
 
 /**
- * La question (A) ou la réplique (B) du point : jamais la même deux fois dans un même cycle de 72 séances,
+ * La question (A) ou la réplique (B) du point : jamais la même deux fois dans un même cycle (72 séances, ou cycleSessions : l’objectif du profil),
  * puis la moins récente. Déterministe (graine jour + séance).
  */
-export function pickPointItem({ format, mesure, sessions = [], sessionNumber, dateKey }) {
+export function pickPointItem({ format, mesure, sessions = [], sessionNumber, dateKey, cycleSessions = CYCLE_SESSIONS }) {
   const pool = (format === 'eclair' ? mesure?.repliquesEclair : mesure?.questionsSpontanees) ?? [];
   if (!pool.length) return null;
   const done = pointsDone(sessions).filter((s) => s.weeklyPoint.format === format);
-  const cycle = cycleOf(sessionNumber);
-  const used = new Set(done.filter((s) => cycleOf(s.sessionNumber) === cycle).map((s) => s.weeklyPoint.itemId));
+  const cycle = cycleOf(sessionNumber, cycleSessions);
+  const used = new Set(done.filter((s) => cycleOf(s.sessionNumber, cycleSessions) === cycle).map((s) => s.weeklyPoint.itemId));
   const fresh = pool.filter((it) => !used.has(it.id));
   const history = done.map((s) => s.weeklyPoint.itemId).reverse();
   return pickLeastRecent(fresh.length ? fresh : pool, history, `${dateKey}#${sessionNumber}:point`);
@@ -94,7 +98,7 @@ const READY_LABEL = Object.fromEntries(READY_OPTIONS.map((o) => [o.value, o.labe
  * médiane des 3 premières, aujourd'hui = médiane des 3 dernières).
  * @returns {{ empty: boolean, lines: string[] }}
  */
-export function pointSummary({ sessions = [], measures = [] } = {}) {
+export function pointSummary({ sessions = [], measures = [], profil = null } = {}) {
   const done = pointsDone(sessions);
   const lines = [];
   const ready = done.filter((s) => READY_LABEL[s.weeklyPoint.ready]).slice(-4);
@@ -102,7 +106,7 @@ export function pointSummary({ sessions = [], measures = [] } = {}) {
     const k = ready.filter((s) => s.weeklyPoint.ready === 'pret').length;
     const last = READY_LABEL[ready.at(-1).weeklyPoint.ready];
     const over = ready.length > 1 ? `tes ${ready.length} derniers points` : 'ton dernier point';
-    lines.push(`${READY_QUESTION} « Prêt » ${k} fois sur ${over}. Dernier : « ${last} ».`);
+    lines.push(`${readyQuestion(profil)} « Prêt » ${k} fois sur ${over}. Dernier : « ${last} ».`);
   }
   const pauses = (measures ?? []).filter((m) => m.kind === 'spontane' && m.metric === 'pausePctSpontane'
     && m.algoVersion === ALGO_VERSION && isNum(m.value)).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));

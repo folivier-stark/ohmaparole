@@ -119,3 +119,54 @@ export function voiceEndMessage({ voiceCheck, validTakes = 0, calibrationRemaini
   const next = Number.isFinite(untilControl) && untilControl > 1 ? ` Premier contrôle dans ${plural(untilControl, 'séance')}.` : '';
   return `Ta voix de départ est mesurée.${next}`;
 }
+
+// ─── Variantes neutres (profils Études et Quotidien, spec 2026-10-12-ohmaparole-profils-design.md) ───
+// Le « rendez-vous » devient le « moment important » : un oral, un entretien, une discussion.
+
+export const BLOCKS_NEUTRE = {
+  ...BLOCKS,
+  ecoute: { label: 'Écoute', tagline: 'L’autre se sent entendu.' },
+  rdv: { label: 'Avant un moment important', tagline: 'Tu y vas dans 90 secondes.' },
+};
+
+export const FIN_NEUTRE = [
+  'C’est fait. 5 minutes pour toi, et pour tes prochains moments importants.',
+  ...FIN.slice(1),
+];
+
+export const RDV_NO_RECORD_NEUTRE = 'N’enregistre jamais une vraie conversation sans l’accord de la personne : c’est un délit (article 226-1 du Code pénal). De ce moment, l’appli ne garde que l’heure où tu touches « C’est fait » et tes réponses.';
+
+/** Les textes du « rendez-vous » de chaque écran, pro (mot pour mot ceux d'avant) et neutres. */
+const RDV_TEXTS = {
+  pro: {
+    BLOCKS, FIN, RDV_NO_RECORD,
+    rdvButton: 'Avant un rendez-vous · 90 s',
+    rdvExit: 'Je sors du RDV',
+    rdvCardHead: 'Ton dernier rendez-vous',
+    rdvCardTitle: 'En rendez-vous',
+    rdvCardTagline: 'Ce qui se passe en vrai, face à tes clients.',
+    rdvCardEmpty: 'Lance « Avant un rendez-vous » avant ton prochain RDV, puis touche « Je sors du RDV » en sortant.',
+    rdvFew: 'sur peu de RDV',
+    rdvGoalsTitle: 'Tes derniers objectifs de RDV',
+    rdvGoalsEmpty: 'Les objectifs que tu saisis avant un RDV apparaîtront ici.',
+    rdvObjective: 'À la fin de ce rendez-vous, je veux…',
+    rdvReadyNote: 'Je suis là pour comprendre, pas pour convaincre.',
+  },
+  neutre: {
+    BLOCKS: BLOCKS_NEUTRE, FIN: FIN_NEUTRE, RDV_NO_RECORD: RDV_NO_RECORD_NEUTRE,
+    rdvButton: 'Avant un moment important · 90 s',
+    rdvExit: 'C’est fait',
+    rdvCardHead: 'Ton dernier moment important',
+    rdvCardTitle: 'Dans tes moments importants',
+    rdvCardTagline: 'Ce qui se passe en vrai, quand ça compte.',
+    rdvCardEmpty: 'Lance « Avant un moment important » juste avant, puis touche « C’est fait » une fois le moment passé.',
+    rdvFew: 'sur peu de moments',
+    rdvGoalsTitle: 'Tes derniers objectifs',
+    rdvGoalsEmpty: 'Les objectifs que tu saisis avant un moment important apparaîtront ici.',
+    rdvObjective: 'À la fin de ce moment, je veux…',
+    rdvReadyNote: 'Écouter d’abord, puis parler posément.',
+  },
+};
+
+/** Les textes d'un profil : ceux d'avant pour 'pro' (et sans profil), les variantes neutres sinon. */
+export const textsFor = (profil) => (profil === 'etudes' || profil === 'quotidien' ? RDV_TEXTS.neutre : RDV_TEXTS.pro);

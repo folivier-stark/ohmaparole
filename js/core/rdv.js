@@ -1,5 +1,6 @@
 // Retour après un rendez-vous, version résultats (spec V2 §5, eval-rdv.md §1.3 et §5.2). PUR.
 import { addDays, weekdayMon0 } from './dates.js';
+import { isNeutral } from './profil.js';
 
 const MIN = 60000;
 const HOUR = 60 * MIN;
@@ -80,13 +81,22 @@ export function rdvMeasuredMin(s) {
   return Math.round((s.rdvEndedAt - s.endedAt) / (5 * MIN)) * 5;
 }
 
-const isProspect = (s) => s.rdvProspect !== 'non';
+/**
+ * Un « moment important » (routine lancée avec un profil Études ou Quotidien, spec profils §2) : seulement
+ * « Objectif atteint ? » (s'il y a un objectif) puis « On t'a fait répéter ? ». Ni filtre prospect, ni suite,
+ * ni budget, ni durée ; il n'entre jamais dans ces taux.
+ */
+export const isMoment = (s) => isNeutral(s?.profil);
+
+const isProspect = (s) => !isMoment(s) && s.rdvProspect !== 'non';
 
 /**
  * Les questions de ce RDV, dans l'ordre : le filtre, l'objectif s'il a été saisi, puis, pour un premier RDV
  * prospect, la suite et le budget ; « répéter » ; la durée en dernier, sautée si l'on dépasserait 5 questions.
+ * Un moment important : l'objectif s'il a été saisi, puis « répéter ».
  */
 export function rdvQuestionIds(s) {
+  if (isMoment(s)) return [...(hasGoal(s) ? ['objectif'] : []), 'repeter'];
   const duration = rdvMeasuredMin(s) != null ? 'annonce' : 'heure';
   const ids = [
     'prospect',
@@ -107,7 +117,7 @@ export const rdvStarted = (s) => Object.keys(RDV_QUESTIONS).some((id) => isDone(
  * encore être demandé, et « Passer » sur elle clôturait tout le retour.
  */
 export function nextRdvQuestion(s) {
-  if (!isDone(s, 'prospect') && isDone(s, 'repeter')) {
+  if (!isMoment(s) && !isDone(s, 'prospect') && isDone(s, 'repeter')) {
     return s.feedback != null && hasGoal(s) && !isDone(s, 'objectif') ? 'objectif' : null;
   }
   return rdvQuestionIds(s).find((id) => !isDone(s, id)) ?? null;

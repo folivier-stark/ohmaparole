@@ -1,4 +1,7 @@
 import { pickLeastRecent } from './pick.js';
+import { isNeutral } from './profil.js';
+import { textsFor } from './texts.js';
+import { readyQuestion } from './weekly-point.js';
 
 export const WEEKS_PER_CYCLE = 6;
 export const SESSIONS_PER_WEEK = 5;
@@ -41,17 +44,21 @@ function articulationSteps(it) {
 /** Consigne fixe du bloc « Mesure de ta voix », toujours la même (eval-diction.md §3.4, « Effet test »). */
 export const VOICE_CONSIGNE = 'Téléphone posé à 30 cm, même pièce. Lis comme si tu parlais à un prospect. Ne cherche pas à bien faire.';
 export const VOICE_TAKES = 3;
+/** Profils Études et Quotidien : la même consigne, sans prospect. */
+export const VOICE_CONSIGNE_NEUTRE = 'Téléphone posé à 30 cm, même pièce. Lis comme si tu parlais à quelqu’un. Ne cherche pas à bien faire.';
+/** Ce que dit la synthèse vocale avant les prises, pour un profil non pro (voice-check.js). */
+export const VOICE_SPEAK_NEUTRE = 'Téléphone posé à 30 centimètres. Lis comme si tu parlais à quelqu’un.';
 
 /**
  * Bloc « Mesure de ta voix » (spec V2 §4) : un seul pas, sans limite de temps (untimed), que l'écran de
  * séance déroule en 3 prises du texte de référence. Durée nominale 120 s, celle de l'articulation qu'il
  * remplace : la séance reste à 5 min environ. Il remplace les jalons J1, J7, J14, J30 et J60 de la V1.
  */
-function voiceSteps(ref, voiceCheck) {
+function voiceSteps(ref, voiceCheck, neutral = false) {
   return [{
     block: 'voix', kind: 'voice', durationSec: 120, untimed: true, itemId: ref.id, title: 'Mesure de ta voix',
-    lines: [VOICE_CONSIGNE], text: ref.texte, syllables: ref.syllabes, takes: VOICE_TAKES, voiceCheck,
-    recordKind: 'reference', speak: null,
+    lines: [neutral ? VOICE_CONSIGNE_NEUTRE : VOICE_CONSIGNE], text: ref.texte, syllables: ref.syllabes, takes: VOICE_TAKES, voiceCheck,
+    recordKind: 'reference', speak: null, ...(neutral ? { speakTake: VOICE_SPEAK_NEUTRE } : {}),
   }];
 }
 
@@ -59,18 +66,20 @@ function voiceSteps(ref, voiceCheck) {
  * Point de la semaine (spec V2 §6) : un pas sans limite de temps, à la place du bloc 3 (durée nominale 120 s,
  * celle d'un bloc 3). A : parole spontanée de 45 s (M §3.2). B : réplique éclair (R §3.3).
  */
-function pointSteps(format, item) {
+function pointSteps(format, item, neutral = false) {
   if (format === 'eclair') {
     return [{
       block: 'point', kind: 'eclair', durationSec: 120, untimed: true, itemId: item.id, title: 'Réplique éclair',
-      lines: ['Le prospect te dit une phrase. Réponds-lui à voix haute.', 'Quand tu as fini, tais-toi jusqu’au signal.'],
+      lines: [neutral ? 'Quelqu’un te dit une phrase. Réponds-lui à voix haute.' : 'Le prospect te dit une phrase. Réponds-lui à voix haute.', 'Quand tu as fini, tais-toi jusqu’au signal.'],
       text: null, replique: item.replique, criteres: [item.critere1, item.critere2], speak: null,
+      // Profils non pro : les libellés de l'écran de la réplique (point-eclair.js), sans prospect.
+      ...(neutral ? { labels: { ecouter: 'Écouter la réplique', dit: 'On te dit…', aDit: 'On t’a dit' } } : {}),
     }];
   }
   return [{
     block: 'point', kind: 'spontane', durationSec: 120, untimed: true, itemId: item.id, title: 'Ton point de la semaine',
-    lines: ['45 secondes pour répondre, comme en rendez-vous.', 'Rien à préparer : tu parles, c’est tout.'],
-    text: null, question: item.texte, maxSec: 45, speak: null,
+    lines: [neutral ? '45 secondes pour répondre, comme dans un moment important.' : '45 secondes pour répondre, comme en rendez-vous.', 'Rien à préparer : tu parles, c’est tout.'],
+    text: null, question: item.texte, maxSec: 45, speak: null, ...(neutral ? { readyQuestion: readyQuestion('etudes') } : {}),
   }];
 }
 
@@ -100,8 +109,9 @@ export function buildDailyPlan({
   const moteur = pickLeastRecent(warm.filter((e) => e.type === 'moteur'), history, `${seed}:moteur`);
   // Une reprise ne porte jamais de mesure de voix : elle reste due pour la séance suivante.
   const voice = comeback ? null : voiceCheck;
+  const neutral = isNeutral(content.profil);
   const steps = [
-    ...(voice ? voiceSteps(content.reference, voice) : []),
+    ...(voice ? voiceSteps(content.reference, voice, neutral) : []),
     guide('echauffement', voix, 30), guide('echauffement', moteur, 30),
   ];
   const itemIds = [voix.id, moteur.id];
@@ -119,7 +129,7 @@ export function buildDailyPlan({
   const point = !comeback && !voice && weeklyPoint?.item ? weeklyPoint : null;
   if (point) {
     itemIds.push(point.item.id);
-    steps.push(...pointSteps(point.format, point.item));
+    steps.push(...pointSteps(point.format, point.item, neutral));
   } else if (!comeback) {
     bloc3 = nextBloc3(lastBloc3);
     const it = pickLeastRecent(weekItems(content, week, bloc3), history, `${seed}:${bloc3}`);
@@ -141,7 +151,7 @@ export function buildRdvPlan({ content, dateKey, lastConsigneId = null }) {
     consigneId: c.id,
     itemIds: [],
     steps: [
-      { block: 'rdv', kind: 'objective', durationSec: 30, title: 'Ton objectif', lines: ['À la fin de ce rendez-vous, je veux…'], text: null, speak: 'Ton objectif, en une phrase.' },
+      { block: 'rdv', kind: 'objective', durationSec: 30, title: 'Ton objectif', lines: [textsFor(content.profil).rdvObjective], text: null, speak: 'Ton objectif, en une phrase.' },
       { block: 'rdv', kind: 'breathe', durationSec: 30, title: 'Ancrage', lines: ['Pieds au sol.', 'Trois longues expirations sur « fff ».', 'Épaules basses, mâchoire desserrée.'], text: null, speak: 'Pieds au sol. Trois longues expirations. Épaules basses.' },
       { block: 'rdv', kind: 'consigne', durationSec: 30, title: 'Ta consigne', lines: [c.texte, 'Ta première phrase, lentement.'], text: null, speak: `${c.texte} Puis ta première phrase, lentement.` },
     ],

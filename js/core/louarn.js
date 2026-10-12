@@ -59,6 +59,14 @@ export const SOUVENIRS = freeze([
 
 export const MOMENTS = Object.freeze(['accueil', 'fin', 'jalon', 'theme', 'retour', 'rdv', 'tip', 'stade']);
 export const CONTEXT_CONDITIONS = Object.freeze(['matin', 'soir', 'ecoute', 'posture', 'bloc>=2', 'bloc>=3']);
+/**
+ * Conditions de profil (spec profils) : 'profil:etudes' et 'profil:quotidien' sont du contexte (vraies pour
+ * ce profil). Une réplique de thème propre à un profil porte une condition COMPOSÉE, 'profil:etudes&theme:7' :
+ * elle passe avant 'theme:7' (themeContext), et n'est jamais tirée pour un autre profil.
+ */
+export const PROFIL_CONDITIONS = Object.freeze(['profil:etudes', 'profil:quotidien']);
+/** Objectif du programme pro (18 thèmes de 4 séances) : les seuils de STAGES sont posés sur lui. */
+export const GOAL_PRO = 72;
 const STATE_CONDITIONS = ['doneToday', 'yesterdayOff', 'premiereSeance', 'partielle', 'encoreUne', 'objectif', 'sansObjectif',
   'jalon:due', 'jalon:1', 'jalon:7', 'jalon:14', 'jalon:30', 'jalon:60+', 'theme:langues', 'cycle:2', 'stade:6+'];
 
@@ -71,25 +79,39 @@ const norm = (n) => (Number.isFinite(Number(n)) && Number(n) > 0 ? Math.floor(Nu
 
 // ── Stades ──────────────────────────────────────────────────────────────────────────────────────
 
+const STAGES_BY_GOAL = new Map([[GOAL_PRO, STAGES]]);
+
+/**
+ * Les 6 stades répartis sur l'objectif du profil (spec profils §2), proportionnellement aux seuils pro :
+ * 72 séances → 0, 12, 24, 36, 48, 72 (STAGES, inchangés) ; 48 séances → 0, 8, 16, 24, 32, 48.
+ */
+export function stagesFor(goal = GOAL_PRO) {
+  const g = norm(goal) || GOAL_PRO;
+  if (!STAGES_BY_GOAL.has(g)) {
+    STAGES_BY_GOAL.set(g, freeze(STAGES.map((s) => ({ ...s, seuil: Math.round((s.seuil * g) / GOAL_PRO) }))));
+  }
+  return STAGES_BY_GOAL.get(g);
+}
+
 /** Le stade pour un cumul de séances. Fonction croissante d'un cumul qui ne baisse jamais : pas de régression. */
-export function stageFor(dailyCount) {
+export function stageFor(dailyCount, goal = GOAL_PRO) {
   const n = norm(dailyCount);
-  return STAGES.filter((s) => s.seuil <= n).at(-1);
+  return stagesFor(goal).filter((s) => s.seuil <= n).at(-1);
 }
 
 /** Le stade suivant et les séances qui manquent, ou null au stade 6 (pour toujours). */
-export function nextStage(dailyCount) {
+export function nextStage(dailyCount, goal = GOAL_PRO) {
   const n = norm(dailyCount);
-  const next = STAGES.find((s) => s.seuil > n);
+  const next = stagesFor(goal).find((s) => s.seuil > n);
   return next ? { stage: next, remaining: next.seuil - n } : null;
 }
 
 /** Le stade atteint en passant de prevCount à newCount (le plus haut en cas de saut), sinon null. */
-export function stageUp(prevCount, newCount) {
+export function stageUp(prevCount, newCount, goal = GOAL_PRO) {
   const a = norm(prevCount);
   const b = norm(newCount);
   if (b <= a) return null;
-  return STAGES.filter((s) => s.seuil > a && s.seuil <= b).at(-1) ?? null;
+  return stagesFor(goal).filter((s) => s.seuil > a && s.seuil <= b).at(-1) ?? null;
 }
 
 // ── Thèmes et blocs ─────────────────────────────────────────────────────────────────────────────
@@ -145,11 +167,15 @@ export function themeTag(prevCount, newCount, sessionsPerWeek = SESSIONS_PER_THE
 
 // ── Conditions et tirage ────────────────────────────────────────────────────────────────────────
 
-export const isContextCondition = (c) => CONTEXT_CONDITIONS.includes(c);
+export const isContextCondition = (c) => CONTEXT_CONDITIONS.includes(c) || PROFIL_CONDITIONS.includes(c);
 
-/** La condition fait-elle partie du vocabulaire de G §2.3 ? */
+/** La condition fait-elle partie du vocabulaire de G §2.3 (plus les conditions de profil, composées par « & ») ? */
 export function isKnownCondition(c) {
   if (typeof c !== 'string') return false;
+  if (c.includes('&')) {
+    const parts = c.split('&');
+    return parts.length === 2 && PROFIL_CONDITIONS.includes(parts[0]) && !parts[1].startsWith('profil:') && isKnownCondition(parts[1]);
+  }
   if (isContextCondition(c) || STATE_CONDITIONS.includes(c)) return true;
   const [kind, value] = c.split(':');
   if (kind === 'theme') return /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= THEMES_PER_CYCLE;
@@ -159,7 +185,7 @@ export function isKnownCondition(c) {
 }
 
 /** Conditions de contexte vraies : heure locale (avant 12 h, à partir de 18 h), bloc 3, bloc de la prochaine séance. */
-export function contextTags({ hour, bloc3, dailyCount = 0, sessionsPerWeek = SESSIONS_PER_THEME, weeks = THEMES_PER_CYCLE } = {}) {
+export function contextTags({ hour, bloc3, dailyCount = 0, sessionsPerWeek = SESSIONS_PER_THEME, weeks = THEMES_PER_CYCLE, profil = null } = {}) {
   const tags = [];
   if (Number.isFinite(hour)) {
     if (hour < 12) tags.push('matin');
@@ -169,7 +195,17 @@ export function contextTags({ hour, bloc3, dailyCount = 0, sessionsPerWeek = SES
   const bloc = programBloc(dailyCount, sessionsPerWeek, weeks);
   if (bloc >= 2) tags.push('bloc>=2');
   if (bloc >= 3) tags.push('bloc>=3');
+  if (PROFIL_CONDITIONS.includes(`profil:${profil}`)) tags.push(`profil:${profil}`);
   return tags;
+}
+
+/**
+ * Contexte du moment `theme` : pour un profil non pro, la réplique de thème du profil passe d'abord
+ * ('profil:etudes&theme:7'), puis celle de tous les profils ('theme:7').
+ */
+export function themeContext(tag, profil = null) {
+  if (!tag) return [];
+  return PROFIL_CONDITIONS.includes(`profil:${profil}`) ? [`profil:${profil}&${tag}`, tag] : [tag];
 }
 
 /** Les répliques entre lesquelles on tire (règle de tirage en tête de fichier). */
@@ -236,14 +272,14 @@ export function motivationLines(motivations) {
  */
 export function homeBubble({
   cardShown = false, discret = false, status = {}, voiceDue = null, dailyCount = 0,
-  why = '', seed = 0, hour, bloc3 = null, stade6Plus = false,
+  why = '', seed = 0, hour, bloc3 = null, stade6Plus = false, weeks = THEMES_PER_CYCLE, profil = null,
 } = {}) {
   if (cardShown || discret) return null;
   if (stade6Plus) return { moment: 'stade', context: ['stade:6+'] };
   if (status.comeback) return { moment: 'retour', context: [] };
   // Toute première séance : « on réenregistre le texte du début » serait faux ; c'est l'accueil de la première séance.
   if (voiceDue && norm(dailyCount) > 0) return { moment: 'jalon', context: ['jalon:due'] };
-  const ctx = contextTags({ hour, bloc3, dailyCount });
+  const ctx = contextTags({ hour, bloc3, dailyCount, weeks, profil });
   if (norm(dailyCount) === 0) return { moment: 'accueil', context: ['premiereSeance', ...ctx] };
   if (status.doneToday) return { moment: 'accueil', context: ['doneToday', ...ctx] };
   if (status.yesterdayOff) return { moment: 'accueil', context: ['yesterdayOff', ...ctx] };
@@ -262,13 +298,13 @@ export function homeBubble({
  */
 export function endBubble({
   prevCount, newCount, session = {}, newSouvenirs = [], encoreUne = false, hour, discret = false,
-  sessionsPerWeek = SESSIONS_PER_THEME, jalon = null,
+  sessionsPerWeek = SESSIONS_PER_THEME, jalon = null, weeks = THEMES_PER_CYCLE, profil = null,
 } = {}) {
-  const stage = stageUp(prevCount, newCount);
+  const stage = stageUp(prevCount, newCount, sessionsPerWeek * weeks);
   if (stage) return { moment: 'stade', context: [`stade:${stage.id}`] };
   if (newSouvenirs?.length) return { moment: 'jalon', context: newSouvenirs.map((s) => `trophee:${typeof s === 'string' ? s : s.id}`) };
-  const theme = themeTag(prevCount, newCount, sessionsPerWeek);
-  if (theme) return { moment: 'theme', context: [theme] };
+  const theme = themeTag(prevCount, newCount, sessionsPerWeek, weeks);
+  if (theme) return { moment: 'theme', context: themeContext(theme, profil) };
   if (discret) return null;
   if (jalon) return { moment: 'jalon', context: [jalon] };
   return {
@@ -276,7 +312,7 @@ export function endBubble({
     context: [
       ...(session.completed ? [] : ['partielle']),
       ...(encoreUne ? ['encoreUne'] : []),
-      ...contextTags({ hour, bloc3: session.bloc3, dailyCount: newCount, sessionsPerWeek }),
+      ...contextTags({ hour, bloc3: session.bloc3, dailyCount: newCount, sessionsPerWeek, weeks, profil }),
     ],
   };
 }
@@ -303,25 +339,26 @@ export function rdvBubble({ goal = '', discret = false } = {}) {
  */
 export function endCelebration({
   prevCount, newCount, session = {}, souvenirs: list = [], fetes = [], todayKey, encoreUne = false, hour,
-  discret = false, sessionsPerWeek = SESSIONS_PER_THEME, jalon = null,
+  discret = false, sessionsPerWeek = SESSIONS_PER_THEME, jalon = null, weeks = THEMES_PER_CYCLE, profil = null,
 } = {}) {
   const done = fetes ?? [];
-  const up = stageUp(prevCount, newCount);
+  const goal = sessionsPerWeek * weeks;
+  const up = stageUp(prevCount, newCount, goal);
   const stage = up && !done.includes(`stade:${up.id}`) ? up : null;
   const kept = souvenirsToCelebrate(list ?? [], done, todayKey);
-  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek, jalon };
-  const tag = themeTag(prevCount, newCount, sessionsPerWeek);
+  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek, jalon, weeks, profil };
+  const tag = themeTag(prevCount, newCount, sessionsPerWeek, weeks);
   let bubble;
   if (!up || stage) bubble = endBubble({ prevCount, newCount, ...rest });
-  else if (!kept.celebrate.length && tag) bubble = { moment: 'theme', context: [tag] };
+  else if (!kept.celebrate.length && tag) bubble = { moment: 'theme', context: themeContext(tag, profil) };
   else bubble = endBubble({ prevCount: newCount, newCount, ...rest }); // sans stade ni thème : souvenir, jalon ou fin
   const blockEnd = blockCompleted(prevCount, newCount, sessionsPerWeek) != null;
   const theme = themeCompleted(prevCount, newCount, sessionsPerWeek);
   return {
-    stage: stage ? { from: stageFor(prevCount).id, to: stage.id } : null,
-    next: stage ? nextStage(newCount) : null,
+    stage: stage ? { from: stageFor(prevCount, goal).id, to: stage.id } : null,
+    next: stage ? nextStage(newCount, goal) : null,
     bubble,
-    secondary: bubble?.moment === 'stade' && blockEnd && tag ? { moment: 'theme', context: [tag] } : null,
+    secondary: bubble?.moment === 'stade' && blockEnd && tag ? { moment: 'theme', context: themeContext(tag, profil) } : null,
     theme,
     miniSentier: theme != null && !stage,
     celebrate: kept.celebrate,
@@ -329,9 +366,9 @@ export function endCelebration({
   };
 }
 
-/** Condition 'stade:6+' de l'accueil (G §2.3) : à partir de 72 séances, le seul jour de la première ouverture. */
-export function stade6PlusToday({ dailyCount = 0, shownOn = null, todayKey } = {}) {
-  return norm(dailyCount) >= STAGES.at(-1).seuil && (shownOn == null || shownOn === todayKey);
+/** Condition 'stade:6+' de l'accueil (G §2.3) : à partir de l'objectif (72 séances), le seul jour de la première ouverture. */
+export function stade6PlusToday({ dailyCount = 0, shownOn = null, todayKey, goal = GOAL_PRO } = {}) {
+  return norm(dailyCount) >= stagesFor(goal).at(-1).seuil && (shownOn == null || shownOn === todayKey);
 }
 
 /** Cumul avant et après une séance, et « encore une » (2e séance comptée du jour) pour l'écran de fin. */
@@ -348,6 +385,10 @@ export function sessionCounts(sessions, session) {
 // ── Souvenirs (G §4.3) ──────────────────────────────────────────────────────────────────────────
 
 const atOf = (x) => x.startedAt ?? x.createdAt ?? 0;
+/** Séances d'un bloc (6 thèmes de 4) : « Les fondations » à 24, « La confiance » à 48. */
+const BLOC_SESSIONS = SESSIONS_PER_THEME * THEMES_PER_BLOC;
+/** Profils non pro : le souvenir du premier « moment important » ne parle pas de rendez-vous. */
+const NOMS_NEUTRES = { 'premier-rdv': 'Le premier moment important' };
 /** La plus ancienne des sources qui existent, ou undefined. */
 const earliest = (...xs) => xs.filter(Boolean).sort((a, b) => atOf(a) - atOf(b))[0];
 
@@ -360,7 +401,7 @@ const earliest = (...xs) => xs.filter(Boolean).sort((a, b) => atOf(a) - atOf(b))
  * ancienne date gagne, un souvenir obtenu ne se perd jamais.
  * Renvoie [{ id, nom, ligne, dateKey, at }], triés par date d'obtention.
  */
-export function souvenirs(sessions = [], recordings = []) {
+export function souvenirs(sessions = [], recordings = [], { goal = GOAL_PRO, profil = null } = {}) {
   const byStart = [...(sessions ?? [])].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
   const daily = byStart.filter(isDailyCounted);
   const prerdv = byStart.filter((s) => s.type === 'prerdv');
@@ -377,15 +418,16 @@ export function souvenirs(sessions = [], recordings = []) {
     compris: prerdv.find((s) => s.feedback === 'non'),
     'objectif-tenu': prerdv.find((s) => s.goalReached === 'oui'),
     'chemin-repris': byStart.find((s) => s.type === 'comeback' && s.counted === true),
-    fondations: daily[23],
-    confiance: daily[47],
-    sentier: daily[71],
+    fondations: daily[BLOC_SESSIONS - 1],
+    confiance: daily[2 * BLOC_SESSIONS - 1],
+    sentier: daily[(norm(goal) || GOAL_PRO) - 1],
   };
+  const neutral = PROFIL_CONDITIONS.includes(`profil:${profil}`);
   return SOUVENIRS.filter((s) => found[s.id])
     .map((s) => {
       const src = found[s.id];
       const at = src.startedAt ?? src.createdAt ?? 0;
-      return { ...s, dateKey: src.dateKey ?? dayKeyOf(at), at };
+      return { ...s, ...(neutral && NOMS_NEUTRES[s.id] ? { nom: NOMS_NEUTRES[s.id] } : {}), dateKey: src.dateKey ?? dayKeyOf(at), at };
     })
     .sort((a, b) => a.at - b.at);
 }

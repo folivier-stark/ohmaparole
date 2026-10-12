@@ -21,6 +21,7 @@ import { dailyCount, monthCount } from './progress.js';
 import { MONTHS_FR } from './dates.js';
 import { FORME_OPTIONS, BILAN_EVERY, CONTROL_AFTER, bilansDone } from './bilan-plan.js';
 import { pointsDone } from './weekly-point.js';
+import { isNeutral, profilOf } from './profil.js';
 
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x);
 const Z95 = 1.96;
@@ -34,6 +35,8 @@ export const STATE_TEXT = Object.freeze({
 });
 export const CONTRADICTION_TEXT = 'Les mesures ne sont pas d’accord, on revérifie au prochain bilan.';
 export const REALISME = 'Ce que l’appli pourra te dire au bilan de la séance 72 : en diction et en écoute, probablement un verdict net ; en posture, seulement si un proche écoute tes enregistrements ; en RDV, au mieux une tendance, parce qu’il y aura trop peu de RDV pour plus. Et ce n’est pas un défaut de ta part.';
+/** Profils Études et Quotidien : 48 séances, et des « moments importants » à la place des RDV. */
+export const REALISME_NEUTRE = 'Ce que l’appli pourra te dire au bilan de la séance 48 : en diction et en écoute, probablement un verdict net ; en posture, seulement si un proche écoute tes enregistrements ; dans tes moments importants, au mieux une tendance, parce qu’il y en aura trop peu pour plus. Et ce n’est pas un défaut de ta part.';
 const DOWN = { confirme: 'probable', probable: 'pas-encore', 'pas-encore': 'pas-encore', calibrage: 'calibrage' };
 
 /** Signe d'une famille de soutien à partir d'un z : +1, −1, ou 0 dans le bruit. */
@@ -110,16 +113,19 @@ function rng(seed) {
 }
 
 const REF_ID = 'fr.REF1';
+/** Le texte de référence du profil : fr.REF1 (pro) ou fr.REFQ1 (Études et Quotidien, pack Mesure non pro). */
+const REF_IDS = new Set([REF_ID, 'fr.REFQ1']);
+const isRefId = (id) => REF_IDS.has(id);
 const isRefTake = (r) => r.kind === 'reference';
 /** La prise d'un texte dans une séance de bilan (la référence est une prise `reference` + voiceCheck 'bilan'). */
 function takeOf(recordings, sessionId, textId, refRecordingId = null) {
   // Bilan du jour d'un contrôle de voix : il a réutilisé la lecture du contrôle (pas deux lectures le même jour).
-  if (textId === REF_ID && refRecordingId) {
+  if (isRefId(textId) && refRecordingId) {
     const reused = (recordings ?? []).find((r) => r.id === refRecordingId);
     if (reused) return reused;
   }
   return (recordings ?? []).filter((r) => r.sessionId === sessionId
-    && (textId === REF_ID ? isRefTake(r) && r.voiceCheck === 'bilan' : r.kind === 'bilan' && r.itemId === textId))
+    && (isRefId(textId) ? isRefTake(r) && r.voiceCheck === 'bilan' : r.kind === 'bilan' && r.itemId === textId))
     .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)).at(-1) ?? null;
 }
 
@@ -131,13 +137,13 @@ function takeOf(recordings, sessionId, textId, refRecordingId = null) {
  * contre le bilan précédent.
  * @returns {{ id, textId, olderId, newerId, newerSide: 'A'|'B', leurre: boolean }[]}
  */
-export function prochePairs({ recordings = [], bilans = [], current, seed }) {
-  const texts = [REF_ID, ...[...(current?.bilan?.order ?? [])].sort()];
+export function prochePairs({ recordings = [], bilans = [], current, seed, refId = REF_ID }) {
+  const texts = [refId, ...[...(current?.bilan?.order ?? [])].sort()];
   const past = bilans.filter((b) => b.id !== current.id && b.bilan?.kind === 'bilan');
   const firstRef = [...recordings].filter(isRefTake).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0] ?? null;
   const candidates = [];
   const olderSets = [
-    (t) => (t === REF_ID ? firstRef : past[0] ? takeOf(recordings, past[0].id, t, past[0].bilan?.refRecordingId) : null),
+    (t) => (isRefId(t) ? firstRef : past[0] ? takeOf(recordings, past[0].id, t, past[0].bilan?.refRecordingId) : null),
     (t) => (past.length ? takeOf(recordings, past.at(-1).id, t, past.at(-1).bilan?.refRecordingId) : null),
   ];
   for (const pick of olderSets) {
@@ -150,8 +156,8 @@ export function prochePairs({ recordings = [], bilans = [], current, seed }) {
     }
   }
   const real = candidates.slice(0, 6);
-  const decoy = takeOf(recordings, current.id, REF_ID, current.bilan?.refRecordingId) ?? takeOf(recordings, current.id, texts[1]);
-  const all = decoy ? [...real, { textId: decoy.itemId ?? REF_ID, olderId: decoy.id, newerId: decoy.id, leurre: true }] : real;
+  const decoy = takeOf(recordings, current.id, refId, current.bilan?.refRecordingId) ?? takeOf(recordings, current.id, texts[1]);
+  const all = decoy ? [...real, { textId: decoy.itemId ?? refId, olderId: decoy.id, newerId: decoy.id, leurre: true }] : real;
   const rand = rng(seed);
   for (let i = all.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -179,14 +185,14 @@ export function procheScore({ pairs = [], answers = {} }) {
 }
 
 /** L'écoute par un proche n'est proposée qu'avec au moins 5 paires réelles comparables. */
-function procheAvailable(recordings, sessions, session) {
+function procheAvailable(recordings, sessions, session, refId = REF_ID) {
   const bilans = [...bilansDone(sessions).filter((b) => b.id !== session.id), session];
-  return prochePairs({ recordings, bilans, current: session, seed: 'disponible' }).filter((p) => !p.leurre).length >= 5;
+  return prochePairs({ recordings, bilans, current: session, seed: 'disponible', refId }).filter((p) => !p.leurre).length >= 5;
 }
 
 // ─── Rapport de bilan (M §4.6) ───────────────────────────────────────────────────────────
 
-const textLabel = (id) => (id === REF_ID ? 'Texte de référence' : `Texte ${String(id).slice(-1)}`);
+const textLabel = (id) => (isRefId(id) ? 'Texte de référence' : `Texte ${String(id).slice(-1)}`);
 const FORME_LABEL = Object.fromEntries(FORME_OPTIONS.map((o) => [o.value, o.label]));
 
 /** Débit d'un texte lu à une séance de bilan (lignes `kind: 'bilan'`). */
@@ -229,7 +235,7 @@ function axisOut(key, label, verdict, { lines = [], detail = [], others = [], ba
   };
 }
 
-function dictionAxis({ session, prev, sessions, measures, todayKey, sinceKey, forme, index }) {
+function dictionAxis({ session, prev, sessions, measures, todayKey, sinceKey, forme, index, refId: refText = REF_ID }) {
   const vr = voiceReport(measures);
   const d = vr.metrics?.debit;
   const others = [
@@ -278,7 +284,7 @@ function dictionAxis({ session, prev, sessions, measures, todayKey, sinceKey, fo
   const refId = session.bilan?.refRecordingId;
   const refToday = refId
     ? median((measures ?? []).filter((m) => m.recordingId === refId && m.metric === 'debit' && isNum(m.value)).map((m) => m.value))
-    : textValue(measures, session.id, REF_ID);
+    : textValue(measures, session.id, refText);
   if (isNum(refToday)) detail.push(`Texte de référence aujourd’hui (une prise) : environ ${formatDecimal(refToday)} syll/s.`);
   let extraState = null;
   if (verdict.state === 'pas-encore' && index >= 3 && d && isNum(d.mdc)) {
@@ -340,25 +346,43 @@ function postureAxis({ session, prev, sessions, measures, todayKey, sinceKey }) 
   });
 }
 
-function rdvAxis({ prev, sessions, todayKey }) {
+/** Les textes de l'axe RDV, et leur variante « moments importants » (profils non pro). */
+const RDV_AXIS_TEXTS = {
+  pro: {
+    label: 'En RDV', objectifs: 'Tes objectifs de RDV atteints', none: 'Pas encore de RDV noté.',
+    calibrage: 'On apprend tes repères : la comparaison apparaît après 3 RDV de chaque côté.',
+    methode: 'Méthode : mois 1 contre les 4 dernières semaines, en bêta-binomial ; au mieux une tendance, il y a trop peu de RDV pour plus.',
+    baisse: 'Ces 4 semaines, on t’a fait répéter plus souvent qu’au mois 1. Ça dépend aussi des prospects rencontrés. On regarde au prochain bilan.',
+    pret: '« Prêt pour un RDV »',
+  },
+  neutre: {
+    label: 'Dans tes moments importants', objectifs: 'Tes objectifs atteints', none: 'Pas encore de moment important noté.',
+    calibrage: 'On apprend tes repères : la comparaison apparaît après 3 moments importants de chaque côté.',
+    methode: 'Méthode : mois 1 contre les 4 dernières semaines, en bêta-binomial ; au mieux une tendance, il y a trop peu de moments importants pour plus.',
+    baisse: 'Ces 4 semaines, on t’a fait répéter plus souvent qu’au mois 1. Ça dépend aussi des situations rencontrées. On regarde au prochain bilan.',
+    pret: '« Prêt pour un moment important »',
+  },
+};
+
+function rdvAxis({ prev, sessions, todayKey, texts: t = RDV_AXIS_TEXTS.pro }) {
   const line = rdvBoard(sessions, todayKey).find((l) => l.key === 'repeter');
   const obj = rdvBoard(sessions, todayKey).find((l) => l.key === 'objectif');
   const enough = line && line.separate && line.month1.n >= 3 && line.recent.n >= 3;
   const objSign = obj && obj.separate && obj.month1.n >= 3 && obj.recent.n >= 3
     ? signOf(zFromProb(probGreater(obj.recent.k, obj.recent.n, obj.month1.k, obj.month1.n))) : 0;
-  const others = [{ family: 'terrain', label: 'Tes objectifs de RDV atteints', sign: objSign }];
+  const others = [{ family: 'terrain', label: t.objectifs, sign: objSign }];
   const primary = enough
     ? { available: true, z: zFromProb(probGreater(line.recent.k, line.recent.n, line.month1.k, line.month1.n)) }
     : { calibrage: true };
   const verdict = axisVerdict({ primary, others, previousState: prevState(prev, 'rdv') });
   const lines = line && line.month1.n
     ? [`On ne t’a pas fait répéter : ${line.recent.k} sur ${line.recent.n} ces 4 semaines (mois 1 : ${line.month1.k} sur ${line.month1.n}).`]
-    : ['Pas encore de RDV noté.'];
-  return axisOut('rdv', 'En RDV', verdict, {
+    : [t.none];
+  return axisOut('rdv', t.label, verdict, {
     lines, others,
-    extraState: verdict.state === 'calibrage' ? 'On apprend tes repères : la comparaison apparaît après 3 RDV de chaque côté.' : null,
-    detail: ['Méthode : mois 1 contre les 4 dernières semaines, en bêta-binomial ; au mieux une tendance, il y a trop peu de RDV pour plus.'],
-    baisseText: 'Ces 4 semaines, on t’a fait répéter plus souvent qu’au mois 1. Ça dépend aussi des prospects rencontrés. On regarde au prochain bilan.',
+    extraState: verdict.state === 'calibrage' ? t.calibrage : null,
+    detail: [t.methode],
+    baisseText: t.baisse,
   });
 }
 
@@ -368,13 +392,18 @@ function rdvAxis({ prev, sessions, todayKey }) {
  * @returns {{ index, sessionNumber, dateKey, first, title, sur, axes, ressenti: { lines }, action, actionKind,
  *   realisme: string|null, controlDueAt: number|null }}
  */
-export function buildBilanReport({ session, sessions = [], recordings = [], measures = [], todayKey, lines: mesure = {} }) {
+export function buildBilanReport({ session, sessions = [], recordings = [], measures = [], todayKey, lines: mesure = {}, profil = null, since = 0 }) {
   const index = session.bilan?.index ?? 1;
-  const past = bilansDone(sessions).filter((b) => b.id !== session.id && (b.startedAt ?? 0) < (session.startedAt ?? Infinity));
+  const neutral = isNeutral(profil);
+  const texts = neutral ? RDV_AXIS_TEXTS.neutre : RDV_AXIS_TEXTS.pro;
+  const refId = mesure.reference?.id ?? REF_ID;
+  // Le bilan précédent est celui du même profil, depuis le dernier changement : d'autres textes ne se comparent pas.
+  const sameProfil = (b) => profilOf(b) === (neutral ? profil : 'pro') && (b.startedAt ?? 0) >= (since || 0);
+  const past = bilansDone(sessions).filter((b) => b.id !== session.id && (b.startedAt ?? 0) < (session.startedAt ?? Infinity) && sameProfil(b));
   const prev = past.at(-1) ?? null;
   const sinceKey = prev?.dateKey ?? null;
   const forme = session.bilan?.forme ?? null;
-  const ctx = { session, prev, sessions, recordings, measures, todayKey, sinceKey, forme, index };
+  const ctx = { session, prev, sessions, recordings, measures, todayKey, sinceKey, forme, index, refId, texts };
   const axes = [dictionAxis(ctx), ecouteAxis(ctx), postureAxis(ctx), rdvAxis(ctx)];
 
   const n = dailyCount(sessions);
@@ -384,7 +413,7 @@ export function buildBilanReport({ session, sessions = [], recordings = [], meas
 
   const ressenti = [];
   const points = pointsDone(sessions).filter((s) => !prev || (s.startedAt ?? 0) > (prev.startedAt ?? 0)).filter((s) => s.weeklyPoint.ready);
-  if (points.length) ressenti.push(`« Prêt pour un RDV » : ${points.filter((s) => s.weeklyPoint.ready === 'pret').length} points sur ${points.length}.`);
+  if (points.length) ressenti.push(`${texts.pret} : ${points.filter((s) => s.weeklyPoint.ready === 'pret').length} points sur ${points.length}.`);
   const grille = session.bilan?.grille ?? {};
   for (const it of mesure.autoGrille ?? []) {
     const v = grille[it.id];
@@ -401,7 +430,7 @@ export function buildBilanReport({ session, sessions = [], recordings = [], meas
   if (dictionDown) {
     action = `Un bilan de contrôle dans ${CONTROL_AFTER} séances : 3 minutes, le texte de référence et les textes inédits.`;
     actionKind = 'controle';
-  } else if (index >= 2 && !session.bilan?.proche && procheAvailable(recordings, sessions, session)) {
+  } else if (index >= 2 && !session.bilan?.proche && procheAvailable(recordings, sessions.filter(sameProfil), session, refId)) {
     action = 'Fais écouter tes lectures à un proche, à l’aveugle : 10 minutes, il tient ton téléphone.';
     actionKind = 'proche';
   } else {
@@ -425,7 +454,7 @@ export function buildBilanReport({ session, sessions = [], recordings = [], meas
     ressenti: { lines: ressenti },
     action,
     actionKind,
-    realisme: prev ? null : REALISME,
+    realisme: prev ? null : neutral ? REALISME_NEUTRE : REALISME,
     controlDueAt: dictionDown && isNum(session.sessionNumber) ? session.sessionNumber + CONTROL_AFTER : null,
   };
 }
@@ -435,10 +464,10 @@ export function buildBilanReport({ session, sessions = [], recordings = [], meas
  * base de la voix. Toujours au-delà de la MDC : la baisse se confirme (un signal, une piste) ; sinon, elle ne
  * se retrouve pas.
  */
-export function controlResult({ control, measures = [] }) {
+export function controlResult({ control, measures = [], refId = REF_ID }) {
   const vr = voiceReport(measures);
   const d = vr.metrics?.debit;
-  const cur = textValue(measures, control.id, REF_ID);
+  const cur = textValue(measures, control.id, refId);
   if (!isNum(cur) || !d || !isNum(d.base) || !isNum(d.sdw)) {
     return { confirmee: null, text: 'Pas de lecture valide à ce contrôle : on regarde au prochain bilan.', piste: null };
   }

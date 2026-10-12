@@ -9,6 +9,7 @@
 // - Après une baisse au-delà de la MDC, un bilan de CONTRÔLE de 3 min (texte de référence et inédits, M §3.3)
 //   est proposé 5 séances plus tard, à la place du bloc voix ou de l'articulation.
 import { hashString } from './pick.js';
+import { isNeutral } from './profil.js';
 
 export const BILAN_EVERY = 24;
 export const CONTROL_AFTER = 5;
@@ -18,6 +19,24 @@ export const FORME_OPTIONS = Object.freeze([
   Object.freeze({ value: 'fatigue', label: 'Fatigué' }),
 ]);
 export const BILAN_CONSIGNE = 'Même pièce, assis, téléphone posé à 30 cm. Lis comme si tu parlais à un prospect. Ne cherche pas à bien faire.';
+/** Les textes du bilan qui parlent du monde pro, et leur variante neutre (profils Études et Quotidien). */
+const BILAN_TEXTS = {
+  pro: {
+    consigne: BILAN_CONSIGNE,
+    presentationLine: '60 secondes, sans texte : présente-toi à un artisan qui ne te connaît pas.',
+    presentation: 'Présente-toi à un artisan qui ne te connaît pas.',
+    grille: 'Tes gestes en RDV',
+  },
+  neutre: {
+    consigne: 'Même pièce, assis, téléphone posé à 30 cm. Lis comme si tu parlais à quelqu’un. Ne cherche pas à bien faire.',
+    presentationLine: '60 secondes, sans texte : présente-toi à quelqu’un qui ne te connaît pas.',
+    presentation: 'Présente-toi à quelqu’un qui ne te connaît pas.',
+    grille: 'Tes gestes à l’oral',
+    grilleIntro: 'Lors de tes derniers moments importants ou mises en situation, ce qui te ressemble le plus :',
+    speakTake: 'Téléphone posé à 30 centimètres. Lis comme si tu parlais à quelqu’un.',
+  },
+};
+const bilanTexts = (content) => (isNeutral(content?.profil) ? BILAN_TEXTS.neutre : BILAN_TEXTS.pro);
 
 const isCountedDaily = (s) => s?.counted === true && (s.type === 'daily' || s.type === 'comeback');
 
@@ -93,9 +112,10 @@ export function ineditOrder(ids, seed) {
   return out;
 }
 
-const lecture = (it, role, durationSec, i) => ({
+const lecture = (it, role, durationSec, i, t = BILAN_TEXTS.pro) => ({
   block: `bilan:lecture:${i}`, kind: 'lecture', role, durationSec, untimed: true, itemId: it.id, title: it.titre ?? 'Texte de référence',
-  lines: [BILAN_CONSIGNE], text: it.texte, syllables: it.syllabes, takes: 1, minValid: 1, voiceCheck: 'bilan', speak: null,
+  lines: [t.consigne], text: it.texte, syllables: it.syllabes, takes: 1, minValid: 1, voiceCheck: 'bilan', speak: null,
+  ...(t.speakTake ? { speakTake: t.speakTake } : {}),
 });
 
 /**
@@ -104,10 +124,11 @@ const lecture = (it, role, durationSec, i) => ({
  */
 function readingSteps(content, order, reuseRefId = null) {
   const byId = new Map((content.mesure?.textesInedits ?? []).map((t) => [t.id, t]));
+  const t = bilanTexts(content);
   return [
     { block: 'bilan:forme', kind: 'forme', durationSec: 5, untimed: true, title: 'Ta forme du jour', lines: [], text: null, speak: null },
-    ...(reuseRefId ? [] : [lecture({ ...content.reference, titre: 'Texte de référence' }, 'ref', 60, 0)]),
-    ...order.map((id, i) => lecture(byId.get(id), 'inedit', 35, i + 1)),
+    ...(reuseRefId ? [] : [lecture({ ...content.reference, titre: 'Texte de référence' }, 'ref', 60, 0, t)]),
+    ...order.map((id, i) => lecture(byId.get(id), 'inedit', 35, i + 1, t)),
   ];
 }
 
@@ -121,12 +142,13 @@ export function buildBilanPlan({ content, sessionNumber, dateKey, index, seed = 
   const order = ineditOrder((mesure.textesInedits ?? []).map((t) => t.id), seed);
   const ecoutes = mesure.ecoutesReservees ?? [];
   const ecoute = ecoutes[(index - 1) % Math.max(1, ecoutes.length)];
+  const t = bilanTexts(content);
   const steps = [
     ...readingSteps(content, order, reuseRefId),
     {
       block: 'bilan:presentation', kind: 'presentation', durationSec: 60, untimed: true, itemId: 'presentation', title: 'Se présenter',
-      lines: ['60 secondes, sans texte : présente-toi à un artisan qui ne te connaît pas.'],
-      question: 'Présente-toi à un artisan qui ne te connaît pas.', maxSec: 60, askReady: false, text: null, speak: null,
+      lines: [t.presentationLine],
+      question: t.presentation, maxSec: 60, askReady: false, text: null, speak: null,
     },
     {
       block: 'bilan:ecoute', kind: 'ecoute-bilan', durationSec: 90, untimed: true, itemId: ecoute?.id ?? null, title: ecoute?.titre ?? 'Écoute',
@@ -134,8 +156,8 @@ export function buildBilanPlan({ content, sessionNumber, dateKey, index, seed = 
       faitsCles: ecoute?.faitsCles ?? [], text: null, speak: null,
     },
     {
-      block: 'bilan:grille', kind: 'grille', durationSec: 60, untimed: true, title: 'Tes gestes en RDV', lines: [],
-      items: mesure.autoGrille ?? [], text: null, speak: null,
+      block: 'bilan:grille', kind: 'grille', durationSec: 60, untimed: true, title: t.grille, lines: [],
+      items: mesure.autoGrille ?? [], text: null, speak: null, ...(t.grilleIntro ? { intro: t.grilleIntro } : {}),
     },
     { block: 'bilan:ab', kind: 'ab', durationSec: 60, untimed: true, title: 'À l’aveugle', lines: [], text: null, speak: null },
   ];
