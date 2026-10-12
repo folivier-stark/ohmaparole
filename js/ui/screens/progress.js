@@ -15,7 +15,7 @@ import { bilansDone, lastBilanKey, BILAN_EVERY } from '../../core/bilan-plan.js'
 import { souvenirs } from '../../core/louarn.js';
 import { createParcours } from '../components/parcours.js';
 
-const axisCards = ({ BLOCKS }) => [
+const axisCardDefs = ({ BLOCKS }) => [
   { key: 'diction', title: 'Diction et élocution', tagline: BLOCKS.articulation.tagline, measure: 'Prises « Clair »', kind: 'Ton ressenti.', empty: 'Réponds à « Ta prise ? » à la fin de l’articulation.' },
   { key: 'ecoute', title: 'Écoute', tagline: BLOCKS.ecoute.tagline, measure: 'Détails cachés repérés', kind: 'Ton ressenti.', empty: 'Réponds à « Repéré ? » après chaque écoute.' },
   { key: 'posture', title: 'Posture et présence', tagline: BLOCKS.posture.tagline, measure: 'Séances où tu t’es senti posé', kind: 'Ton ressenti.', empty: 'Réponds à « Tu t’es senti posé ? » à la fin du bloc posture.' },
@@ -183,7 +183,7 @@ export async function render(root, { repo, content }) {
   // Axes de progrès
   const voiceTop = voiceSection(measures, sessionsUntilControl(recordings, daily));
   const axisCards = [
-    ...axisCards(textsFor(content.profil)).map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
+    ...axisCardDefs(textsFor(content.profil)).map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
     rdvCard(sessions, today, content.profil),
     pointCard(sessions, measures, content.profil),
     bilansCard(sessions),
