@@ -12,7 +12,7 @@ import { voiceReport, voiceSummary } from '../../core/voice-report.js';
 import { postureSupportLine } from '../../core/live-silence.js';
 import { pointSummary } from '../../core/weekly-point.js';
 import { bilansDone, lastBilanKey, BILAN_EVERY } from '../../core/bilan-plan.js';
-import { souvenirs } from '../../core/louarn.js';
+import { souvenirs, mergeSouvenirs } from '../../core/louarn.js';
 import { createParcours } from '../components/parcours.js';
 
 const axisCardDefs = ({ BLOCKS }) => [
@@ -153,10 +153,14 @@ export async function render(root, { repo, content }) {
   const today = dayKey(Date.now());
   const [y, m] = today.split('-').map(Number);
   const [sessions, allRecordings, allMeasures] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
-  // La mesure de la voix est propre au profil, depuis le dernier changement ; les souvenirs, eux, ne se perdent pas.
-  const recordings = ofProfil(allRecordings, content.profil, content.profilSince);
-  const measures = ofProfil(allMeasures, content.profil, content.profilSince);
+  // La mesure de la voix est propre au profil (un profil déjà utilisé la retrouve) ; les souvenirs, eux, ne se perdent pas.
+  const recordings = ofProfil(allRecordings, content.profil);
+  const measures = ofProfil(allMeasures, content.profil);
   const goal = programGoal(content.program);
+  // Programme du profil (Parcours, objectif, point, voix) : ses séances ; Louarn : le cumul, sans jamais régresser.
+  const mineS = ofProfil(sessions, content.profil);
+  const prog = dailyCount(mineS);
+  const [stadeMax, stored] = await Promise.all([repo.getMeta('louarn.stadeMax', 0), repo.getMeta('louarn.souvenirs', [])]);
   const daily = dailyCount(sessions);
   const total = totalCount(sessions);
   const monthDays = monthCount(sessions, y, m);
@@ -165,13 +169,14 @@ export async function render(root, { repo, content }) {
 
   // Le Parcours en tête (G §4.2, maquette §5.2) : Louarn, le sentier de 18 pierres, les souvenirs obtenus.
   const parcours = createParcours({
-    dailyCount: daily, program: content.program, souvenirs: souvenirs(sessions, allRecordings, { goal, profil: content.profil }), lines: content.louarn?.repliques ?? null,
+    dailyCount: prog, total: daily, stadeMax, program: content.program, lines: content.louarn?.repliques ?? null,
+    souvenirs: mergeSouvenirs(stored, souvenirs(sessions, allRecordings, { goal, profil: content.profil }), { profil: content.profil }),
   });
 
   // Objectif 72 séances : le sentier remplace la barre, et dit déjà « x séances sur 72 » et « À 72… » (G §4.2).
   // La date estimée et la courbe du cumul restent, sans changement.
-  const g = goalProgress(sessions, today, goal);
-  const series = cumulativeSeries(sessions, today);
+  const g = goalProgress(mineS, today, goal);
+  const series = cumulativeSeries(mineS, today);
   const goalCard = h('div', { class: 'card' },
     h('h2', {}, `Objectif ${g.goal} séances`),
     g.reached ? h('p', {}, 'Objectif atteint ! Prochaine étape : l’anglais.') : null,
@@ -181,11 +186,11 @@ export async function render(root, { repo, content }) {
     series.length ? cumulativeChart(series, g.goal) : null);
 
   // Axes de progrès
-  const voiceTop = voiceSection(measures, sessionsUntilControl(recordings, daily));
+  const voiceTop = voiceSection(measures, sessionsUntilControl(recordings, prog));
   const axisCards = [
     ...axisCardDefs(textsFor(content.profil)).map((a) => axisCard(sessions, today, a, a.key === 'diction' ? voiceTop : null, a.key === 'posture' ? postureBottom(measures) : null)),
     rdvCard(sessions, today, content.profil),
-    pointCard(sessions, measures, content.profil),
+    pointCard(mineS, measures, content.profil),
     bilansCard(sessions),
   ];
 
@@ -198,7 +203,7 @@ export async function render(root, { repo, content }) {
   // Ta voix : les lectures du texte de référence (références V1, mesures de départ, contrôles) et l'A/B.
   const timeline = voiceTimeline(recordings);
   const remaining = calibrationRemaining(recordings);
-  const until = sessionsUntilControl(recordings, daily);
+  const until = sessionsUntilControl(recordings, prog);
   const controls = timeline.filter((o) => o.kind === 'controle').length;
   const upcoming = remaining > 0 ? `Départ ${CALIBRATION_SESSIONS - remaining + 1}` : `Contrôle ${controls + 1}`;
   let next;

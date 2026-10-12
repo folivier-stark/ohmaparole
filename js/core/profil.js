@@ -4,8 +4,9 @@
 //   pose la question une fois (carte bloquante). Fred choisit Pro et rien ne change pour lui.
 // - Chaque séance, enregistrement ou mesure écrit depuis la mise à jour porte `profil`. Les anciens, sans
 //   profil, comptent comme 'pro' (profilOf).
-// - Changer de profil : la mesure de la voix repart de zéro (meta `profilDepuis`, ofProfil), les séances
-//   sont gardées.
+// - Changer de profil (décision du 12/10, relecture) : un profil jamais utilisé repart de zéro, un profil
+//   déjà utilisé retrouve sa mesure de voix et sa place dans son programme (filtre par le champ `profil`, sans
+//   coupure dans le temps). Les séances sont toutes gardées ; Louarn compte le cumul et ne régresse jamais.
 
 export const PROFILS = Object.freeze(['pro', 'etudes', 'quotidien']);
 
@@ -19,7 +20,7 @@ export const PROFIL_CHOICES = Object.freeze([
 /** « Pro · prise de parole et rendez-vous de vente » */
 export const profilLine = (c) => `${c.label} · ${c.hint}`;
 
-export const PROFIL_CHANGE_WARNING = 'Ta mesure de voix repartira de zéro. Tes séances sont gardées.';
+export const PROFIL_CHANGE_WARNING = 'Ta mesure de voix repartira de zéro pour ce profil. Tes séances sont gardées. Si tu reviens à ton profil d’avant, tu retrouves sa mesure.';
 
 export const isProfil = (p) => PROFILS.includes(p);
 
@@ -30,8 +31,17 @@ export const profilOf = (row) => (isProfil(row?.profil) ? row.profil : 'pro');
 export const isNeutral = (profil) => isProfil(profil) && profil !== 'pro';
 
 /**
- * Les lignes du profil, créées depuis `since` (ms, meta profilDepuis : le dernier changement de profil).
- * Sert aux enregistrements et aux mesures de la voix : ligne de base, contrôles, A/B, point de la semaine.
+ * Profil neutre choisi alors que l'objectif ou le pourquoi est encore l'objectif pro par défaut (jamais saisi) :
+ * ils prennent la valeur neutre par défaut. Ce que la personne a écrit elle-même reste tel quel.
+ */
+export function neutralGoals({ objective = null, why = null } = {}, proDefault, neutralDefault) {
+  const swap = (v) => (proDefault && v === proDefault ? neutralDefault : v);
+  return { objective: swap(objective), why: swap(why) };
+}
+
+/**
+ * Les lignes du profil (séances, enregistrements, mesures), créées depuis `since` (ms ; 0 par défaut, l'usage de l'appli).
+ * Mesure de la voix (ligne de base, contrôles, A/B) ; position dans le programme, bilans et point de la semaine.
  */
 export function ofProfil(rows, profil = 'pro', since = 0) {
   const p = isProfil(profil) ? profil : 'pro';

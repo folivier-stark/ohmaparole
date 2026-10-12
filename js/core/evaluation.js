@@ -397,7 +397,7 @@ export function buildBilanReport({ session, sessions = [], recordings = [], meas
   const neutral = isNeutral(profil);
   const texts = neutral ? RDV_AXIS_TEXTS.neutre : RDV_AXIS_TEXTS.pro;
   const refId = mesure.reference?.id ?? REF_ID;
-  // Le bilan précédent est celui du même profil, depuis le dernier changement : d'autres textes ne se comparent pas.
+  // Le bilan précédent est celui du même profil : d'autres textes ne se comparent pas.
   const sameProfil = (b) => profilOf(b) === (neutral ? profil : 'pro') && (b.startedAt ?? 0) >= (since || 0);
   const past = bilansDone(sessions).filter((b) => b.id !== session.id && (b.startedAt ?? 0) < (session.startedAt ?? Infinity) && sameProfil(b));
   const prev = past.at(-1) ?? null;

@@ -75,12 +75,14 @@ export function bilanDue({ sessionNumber, sessions = [], comeback = false, conte
 }
 
 /** Le bilan de contrôle dû (5 séances après un bilan qui a montré une baisse), ou null. */
-export function bilanControlDue({ sessionNumber, sessions = [], contentReady = true }) {
+export function bilanControlDue({ sessionNumber, sessions = [], contentReady = true, knownTexts = null }) {
   if (!contentReady) return null;
   const last = bilansDone(sessions).at(-1);
   const at = last?.bilan?.controlDueAt;
   if (!Number.isFinite(at) || (Number(sessionNumber) || 0) < at) return null;
   if (bilansDone(sessions, 'controle').some((s) => s.bilan.of === last.id)) return null;
+  // Bilan d'un autre pack Mesure (changement de profil) : aucun de ses textes inédits ne se relit, pas de contrôle.
+  if (knownTexts && !(last.bilan.order ?? []).some((id) => knownTexts.includes(id))) return null;
   return { of: last.id, index: last.bilan.index, order: last.bilan.order };
 }
 
@@ -128,7 +130,8 @@ function readingSteps(content, order, reuseRefId = null) {
   return [
     { block: 'bilan:forme', kind: 'forme', durationSec: 5, untimed: true, title: 'Ta forme du jour', lines: [], text: null, speak: null },
     ...(reuseRefId ? [] : [lecture({ ...content.reference, titre: 'Texte de référence' }, 'ref', 60, 0, t)]),
-    ...order.map((id, i) => lecture(byId.get(id), 'inedit', 35, i + 1, t)),
+    // Seulement les textes du pack Mesure du profil (un contrôle d'avant un changement de profil n'en a pas).
+    ...order.filter((id) => byId.has(id)).map((id, i) => lecture(byId.get(id), 'inedit', 35, i + 1, t)),
   ];
 }
 

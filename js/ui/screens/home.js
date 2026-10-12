@@ -9,7 +9,9 @@ import { nextBloc3 } from '../../core/planner.js';
 import { homeLine, goLabel, goSubtitle, plural, textsFor } from '../../core/texts.js';
 import { programGoal } from '../../core/dashboard.js';
 import { ofProfil, PROFIL_CHOICES } from '../../core/profil.js';
-import { homeBubble, stablePick, motivationLines, stageFor, humeurFor, stade6PlusToday } from '../../core/louarn.js';
+import {
+  homeBubble, stablePick, motivationLines, humeurFor, stade6PlusToday, displayedStage, nextStadeMax, souvenirs, mergeSouvenirs, memoSouvenirs,
+} from '../../core/louarn.js';
 import { createRdvCard } from '../components/rdv-card.js';
 import { createBulle, createFox } from '../components/fox.js';
 
@@ -17,10 +19,25 @@ import { createBulle, createFox } from '../components/fox.js';
  * Louarn sur l'accueil (G §2.1-2.2, maquette §5.1) : le stade en pied à 96 px et sa bulle, à la place de
  * la ligne de contexte. Carte affichée : il se tait. Mode discret ou aucune réplique : la ligne d'origine.
  */
-async function louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now, announce }) {
+async function louarnLine({ repo, content, sessions, mineS, allRecordings, card, status, due, why, seed, today, now, announce }) {
+  // Le stade suit le cumul de toutes les séances et ne redescend jamais (meta louarn.stadeMax) ; le bloc
+  // du programme suit les séances du profil.
   const daily = dailyCount(sessions);
   const goal = programGoal(content.program);
-  const stage = stageFor(daily, goal).id;
+  const stadeMax = await repo.getMeta('louarn.stadeMax', 0);
+  const stage = displayedStage({ total: daily, goal, stadeMax }).stage.id;
+  try {
+    const max = nextStadeMax(stadeMax, daily, goal);
+    const writes = [];
+    if (max !== stadeMax) writes.push(repo.setMeta('louarn.stadeMax', max));
+    // Les souvenirs obtenus sont mémorisés : un changement de profil ne les efface jamais.
+    const stored = await repo.getMeta('louarn.souvenirs', []);
+    const memo = memoSouvenirs(mergeSouvenirs(stored, souvenirs(sessions, allRecordings, { goal, profil: content.profil })));
+    if (JSON.stringify(memo) !== JSON.stringify(stored ?? [])) writes.push(repo.setMeta('louarn.souvenirs', memo));
+    await Promise.all(writes);
+  } catch (e) {
+    console.error(e);
+  }
   const plain = () => h('div', { class: 'lo-bulle-wrap' }, createFox({ stage, size: 96 }),
     h('p', { class: 'context' }, homeLine({ ...status, voiceDue: due, why, motivations: content.motivations, seed })));
   const silent = () => createBulle({ texte: null, stage });
@@ -30,7 +47,7 @@ async function louarnLine({ repo, content, sessions, card, status, due, why, see
       repo.getMeta('louarn.jour', {}), repo.getMeta('louarn.stade6Jour', null),
     ]);
     const b = homeBubble({
-      cardShown: Boolean(card), discret, status, voiceDue: due, dailyCount: daily, why, seed,
+      cardShown: Boolean(card), discret, status, voiceDue: due, dailyCount: dailyCount(mineS), total: daily, why, seed,
       hour: new Date(now).getHours(), bloc3: nextBloc3(lastBloc3(sessions)),
       stade6Plus: stade6PlusToday({ dailyCount: daily, shownOn, todayKey: today, goal }),
       weeks: content.program.weeks.length, profil: content.profil,
@@ -115,17 +132,21 @@ export async function render(root, { repo, content, navigate, needsProfil = fals
     repo.listSessions(), repo.listRecordings(), repo.getMeta('why', ''),
     repo.getMeta('lastBackupAt', null), repo.getMeta('lastWhyCheck', 0),
   ]);
-  // La mesure de la voix est propre au profil, depuis le dernier changement (spec profils §2).
-  const recordings = ofProfil(allRecordings, content.profil, content.profilSince);
+  // La mesure de la voix est propre au profil : un profil déjà utilisé la retrouve (spec profils §2).
+  const recordings = ofProfil(allRecordings, content.profil);
   const texts = textsFor(content.profil);
   const status = homeStatus(sessions, today);
-  const n = dailyCount(sessions) + 1;
+  // Programme, bilans et point de la semaine suivent les séances du profil : un nouveau profil commence au
+  // début, un profil déjà utilisé reprend où il en était (relecture du 12/10). En Pro : toutes les séances.
+  const mineS = ofProfil(sessions, content.profil);
+  const n = dailyCount(mineS) + 1;
   // Bilan du jour (il remplace la séance) ou, sinon, mesure de la voix due (calibration ou contrôle).
   const contentReady = Boolean(content.mesure?.textesInedits?.length);
-  const bilanNext = bilanDue({ sessionNumber: n, sessions, comeback: status.comeback, contentReady });
+  const knownTexts = (content.mesure?.textesInedits ?? []).map((t) => t.id);
+  const bilanNext = bilanDue({ sessionNumber: n, sessions: mineS, comeback: status.comeback, contentReady });
   const bilanToday = bilanNext ? 'bilan'
-    : !status.comeback && bilanControlDue({ sessionNumber: n, sessions, contentReady }) ? 'controle' : null;
-  const due = bilanToday ? null : voiceCheckDue(recordings, dailyCount(sessions), { todayKey: today });
+    : !status.comeback && bilanControlDue({ sessionNumber: n, sessions: mineS, contentReady, knownTexts }) ? 'controle' : null;
+  const due = bilanToday ? null : voiceCheckDue(recordings, dailyCount(mineS), { todayKey: today });
   // La veille (séance d'avant faite) ou le jour même ; rien un jour de reprise ; un bilan reporté est annoncé.
   const pendingToday = sessions.some((x) => x.dateKey === today && x.bilan?.kind === 'bilan' && x.bilan.complete === false);
   const announce = bilanAnnouncement({ due: bilanNext, doneToday: status.doneToday, pendingToday });
@@ -148,7 +169,7 @@ export async function render(root, { repo, content, navigate, needsProfil = fals
         h('button', { class: 'btn-small', onclick: async () => { await repo.setMeta('lastWhyCheck', total); navigate('/settings'); } }, 'Je le reformule')));
   }
 
-  const louarn = await louarnLine({ repo, content, sessions, card, status, due, why, seed, today, now, announce });
+  const louarn = await louarnLine({ repo, content, sessions, mineS, allRecordings, card, status, due, why, seed, today, now, announce });
 
   root.replaceChildren(h('div', { class: 'home' },
     h('header', { class: 'top' },
@@ -163,7 +184,7 @@ export async function render(root, { repo, content, navigate, needsProfil = fals
         h('span', {}, goLabel({ ...status, bilan: bilanToday })),
         h('small', {}, goSubtitle({
           comeback: status.comeback, voiceDue: due, bloc3: nextBloc3(lastBloc3(sessions)), bilan: bilanToday,
-          point: !bilanToday && contentReady && Boolean(weeklyPointDue({ sessionNumber: n, sessions, voiceCheck: due, comeback: status.comeback })),
+          point: !bilanToday && contentReady && Boolean(weeklyPointDue({ sessionNumber: n, sessions: mineS, voiceCheck: due, comeback: status.comeback })),
         }))),
       h('a', { class: 'btn btn-rdv', href: '#/session/prerdv' }, texts.rdvButton))));
   return () => rdvCard?.destroy();

@@ -114,6 +114,23 @@ export function stageUp(prevCount, newCount, goal = GOAL_PRO) {
   return stagesFor(goal).filter((s) => s.seuil > a && s.seuil <= b).at(-1) ?? null;
 }
 
+/**
+ * Le stade à afficher (accueil, fin, Parcours) : celui du cumul de séances sur l'objectif du profil, jamais
+ * sous le plus haut déjà atteint (meta louarn.stadeMax). Après un changement de profil, le renard ne
+ * rapetisse pas. next : le stade suivant celui affiché et les séances qui manquent, ou null au stade 6.
+ */
+export function displayedStage({ total = 0, goal = GOAL_PRO, stadeMax = 0 } = {}) {
+  const stages = stagesFor(goal);
+  const n = norm(total);
+  const id = Math.min(stages.length, Math.max(stageFor(n, goal).id, norm(stadeMax)));
+  const stage = stages[id - 1];
+  const nx = stages.find((s) => s.id > id);
+  return { stage, next: nx ? { stage: nx, remaining: Math.max(1, nx.seuil - n) } : null };
+}
+
+/** Le plus haut stade atteint, à mémoriser (meta louarn.stadeMax) : il ne baisse jamais. */
+export const nextStadeMax = (stadeMax, total, goal = GOAL_PRO) => Math.max(norm(stadeMax), stageFor(total, goal).id);
+
 // ── Thèmes et blocs ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -273,14 +290,16 @@ export function motivationLines(motivations) {
 export function homeBubble({
   cardShown = false, discret = false, status = {}, voiceDue = null, dailyCount = 0,
   why = '', seed = 0, hour, bloc3 = null, stade6Plus = false, weeks = THEMES_PER_CYCLE, profil = null,
+  total = dailyCount,
 } = {}) {
+  // dailyCount : séances du programme du profil (bloc courant) ; total : toutes les séances (première séance).
   if (cardShown || discret) return null;
   if (stade6Plus) return { moment: 'stade', context: ['stade:6+'] };
   if (status.comeback) return { moment: 'retour', context: [] };
   // Toute première séance : « on réenregistre le texte du début » serait faux ; c'est l'accueil de la première séance.
-  if (voiceDue && norm(dailyCount) > 0) return { moment: 'jalon', context: ['jalon:due'] };
+  if (voiceDue && norm(total) > 0) return { moment: 'jalon', context: ['jalon:due'] };
   const ctx = contextTags({ hour, bloc3, dailyCount, weeks, profil });
-  if (norm(dailyCount) === 0) return { moment: 'accueil', context: ['premiereSeance', ...ctx] };
+  if (norm(total) === 0) return { moment: 'accueil', context: ['premiereSeance', ...ctx] };
   if (status.doneToday) return { moment: 'accueil', context: ['doneToday', ...ctx] };
   if (status.yesterdayOff) return { moment: 'accueil', context: ['yesterdayOff', ...ctx] };
   const r = ((Math.trunc(seed) % 3) + 3) % 3;
@@ -299,8 +318,10 @@ export function homeBubble({
 export function endBubble({
   prevCount, newCount, session = {}, newSouvenirs = [], encoreUne = false, hour, discret = false,
   sessionsPerWeek = SESSIONS_PER_THEME, jalon = null, weeks = THEMES_PER_CYCLE, profil = null,
+  stagePrev = prevCount, stageNew = newCount, stadeMax = 0,
 } = {}) {
-  const stage = stageUp(prevCount, newCount, sessionsPerWeek * weeks);
+  const up = stageUp(stagePrev, stageNew, sessionsPerWeek * weeks);
+  const stage = up && up.id > norm(stadeMax) ? up : null;
   if (stage) return { moment: 'stade', context: [`stade:${stage.id}`] };
   if (newSouvenirs?.length) return { moment: 'jalon', context: newSouvenirs.map((s) => `trophee:${typeof s === 'string' ? s : s.id}`) };
   const theme = themeTag(prevCount, newCount, sessionsPerWeek, weeks);
@@ -340,23 +361,27 @@ export function rdvBubble({ goal = '', discret = false } = {}) {
 export function endCelebration({
   prevCount, newCount, session = {}, souvenirs: list = [], fetes = [], todayKey, encoreUne = false, hour,
   discret = false, sessionsPerWeek = SESSIONS_PER_THEME, jalon = null, weeks = THEMES_PER_CYCLE, profil = null,
+  stagePrev = prevCount, stageNew = newCount, stadeMax = 0,
 } = {}) {
   const done = fetes ?? [];
   const goal = sessionsPerWeek * weeks;
-  const up = stageUp(prevCount, newCount, goal);
+  // Les stades suivent le cumul de séances (stagePrev, stageNew), les thèmes le programme du profil
+  // (prevCount, newCount). Jamais de montée sous le stade déjà atteint (stadeMax).
+  const raw = stageUp(stagePrev, stageNew, goal);
+  const up = raw && raw.id > norm(stadeMax) ? raw : null;
   const stage = up && !done.includes(`stade:${up.id}`) ? up : null;
   const kept = souvenirsToCelebrate(list ?? [], done, todayKey);
-  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek, jalon, weeks, profil };
+  const rest = { session: session ?? {}, newSouvenirs: kept.celebrate, encoreUne, hour, discret, sessionsPerWeek, jalon, weeks, profil, stagePrev, stageNew, stadeMax };
   const tag = themeTag(prevCount, newCount, sessionsPerWeek, weeks);
   let bubble;
   if (!up || stage) bubble = endBubble({ prevCount, newCount, ...rest });
   else if (!kept.celebrate.length && tag) bubble = { moment: 'theme', context: themeContext(tag, profil) };
-  else bubble = endBubble({ prevCount: newCount, newCount, ...rest }); // sans stade ni thème : souvenir, jalon ou fin
+  else bubble = endBubble({ ...rest, prevCount: newCount, newCount, stagePrev: stageNew }); // sans stade ni thème : souvenir, jalon ou fin
   const blockEnd = blockCompleted(prevCount, newCount, sessionsPerWeek) != null;
   const theme = themeCompleted(prevCount, newCount, sessionsPerWeek);
   return {
-    stage: stage ? { from: stageFor(prevCount, goal).id, to: stage.id } : null,
-    next: stage ? nextStage(newCount, goal) : null,
+    stage: stage ? { from: Math.max(stageFor(stagePrev, goal).id, norm(stadeMax)), to: stage.id } : null,
+    next: stage ? nextStage(stageNew, goal) : null,
     bubble,
     secondary: bubble?.moment === 'stade' && blockEnd && tag ? { moment: 'theme', context: themeContext(tag, profil) } : null,
     theme,
@@ -431,6 +456,27 @@ export function souvenirs(sessions = [], recordings = [], { goal = GOAL_PRO, pro
     })
     .sort((a, b) => a.at - b.at);
 }
+
+/**
+ * Les souvenirs à montrer : ceux mémorisés (meta louarn.souvenirs, { id, dateKey, at }) et ceux recalculés,
+ * sans doublon, la plus ancienne date gagnant. Un souvenir obtenu ne se perd jamais, même quand un changement
+ * de profil ne le recalcule plus (« Le sentier entier » à 48 puis retour en Pro). Le nom suit le profil courant.
+ */
+export function mergeSouvenirs(stored = [], computed = [], { profil = null } = {}) {
+  const byId = new Map();
+  for (const s of [...(stored ?? []), ...(computed ?? [])]) {
+    if (!s?.id || !SOUVENIRS.some((x) => x.id === s.id)) continue;
+    const prev = byId.get(s.id);
+    if (!prev || (s.at ?? 0) < (prev.at ?? 0)) byId.set(s.id, { id: s.id, dateKey: s.dateKey, at: s.at ?? 0 });
+  }
+  const neutral = PROFIL_CONDITIONS.includes(`profil:${profil}`);
+  return SOUVENIRS.filter((s) => byId.has(s.id))
+    .map((s) => ({ ...s, ...(neutral && NOMS_NEUTRES[s.id] ? { nom: NOMS_NEUTRES[s.id] } : {}), ...byId.get(s.id) }))
+    .sort((a, b) => a.at - b.at);
+}
+
+/** Ce qu'on mémorise des souvenirs (meta louarn.souvenirs). */
+export const memoSouvenirs = (list) => (list ?? []).map(({ id, dateKey, at }) => ({ id, dateKey, at }));
 
 /**
  * Parmi les souvenirs obtenus, ceux à fêter maintenant. fetes : meta louarn.fetes (ids et 'stade:n' déjà fêtés).

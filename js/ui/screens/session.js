@@ -48,13 +48,15 @@ export async function render(root, { repo, content, navigate, params, needsProfi
   const profil = content.profil ?? 'pro';
   const texts = textsFor(profil);
   const { BLOCKS, RDV_NO_RECORD } = texts;
-  // La mesure de la voix est propre au profil, depuis le dernier changement (spec profils §2).
-  const mine = (rows) => ofProfil(rows, profil, content.profilSince);
+  // La mesure de la voix est propre au profil : un profil déjà utilisé la retrouve (spec profils §2).
+  const mine = (rows) => ofProfil(rows, profil);
   const [sessions, allRecordings, why, allMeasures] = await Promise.all([
     repo.listSessions(), repo.listRecordings(), repo.getMeta('why', ''), repo.listMeasures(),
   ]);
   const recordings = mine(allRecordings);
   const measures = mine(allMeasures);
+  // Programme, bilans et point de la semaine suivent les séances du profil (en Pro : toutes les séances).
+  const mineS = mine(sessions);
   /** Toute ligne écrite porte le profil de la séance. */
   const saveRows = (rows) => repo.saveMeasures(withProfil(rows, profil));
   // Seuil des mesures en direct (posture, réplique éclair) : niveaux de la dernière prise de voix valide.
@@ -64,14 +66,15 @@ export async function render(root, { repo, content, navigate, params, needsProfi
   if (kind === 'prerdv') {
     plan = buildRdvPlan({ content, dateKey: today, lastConsigneId: lastConsigneId(sessions) });
   } else {
-    const done = dailyCount(sessions);
+    const done = dailyCount(mineS);
     const n = done + 1;
     const comeback = homeStatus(sessions, today).comeback;
     // Bilan (séances 24, 48, 72) ou bilan de contrôle : ils remplacent la séance du jour (spec V2 §7).
     // Pas de bilan sans le pack « Mesure » (textes inédits, écoutes réservées, auto-grille).
     const contentReady = Boolean(content.mesure?.textesInedits?.length);
-    const bilan = bilanDue({ sessionNumber: n, sessions, comeback, contentReady });
-    const control = bilan || comeback ? null : bilanControlDue({ sessionNumber: n, sessions, contentReady });
+    const knownTexts = (content.mesure?.textesInedits ?? []).map((t) => t.id);
+    const bilan = bilanDue({ sessionNumber: n, sessions: mineS, comeback, contentReady });
+    const control = bilan || comeback ? null : bilanControlDue({ sessionNumber: n, sessions: mineS, contentReady, knownTexts });
     // Une mesure de voix déjà faite aujourd'hui : le bilan réutilise sa lecture (pas deux le même jour).
     const reuseRefId = todayReferenceTake(recordings, today)?.id ?? null;
     if (bilan) {
@@ -82,8 +85,8 @@ export async function render(root, { repo, content, navigate, params, needsProfi
       // Calibration ou contrôle de la voix (spec V2 §4) : ils remplacent les jalons J1 à J60 de la V1.
       const voiceCheck = voiceCheckDue(recordings, done, { todayKey: today });
       // Point de la semaine (spec V2 §6) : jamais avec une mesure de voix, il est alors reporté.
-      const due = weeklyPointDue({ sessionNumber: n, sessions, voiceCheck, comeback });
-      const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions, sessionNumber: n, dateKey: today, cycleSessions: programGoal(content.program) }) : null;
+      const due = weeklyPointDue({ sessionNumber: n, sessions: mineS, voiceCheck, comeback });
+      const item = due ? pickPointItem({ format: due.format, mesure: content.mesure, sessions: mineS, sessionNumber: n, dateKey: today, cycleSessions: programGoal(content.program) }) : null;
       plan = buildDailyPlan({
         content, history: historyIds(sessions), sessionNumber: n, dateKey: today, lastBloc3: lastBloc3(sessions),
         voiceCheck, comeback, weeklyPoint: due && item ? { ...due, item } : null,
@@ -479,7 +482,7 @@ export async function render(root, { repo, content, navigate, params, needsProfi
         else {
           const report = buildBilanReport({
             session: record, sessions: ss, recordings: mine(recs), measures: mine(ms), todayKey: today, lines: content.mesure ?? {},
-            profil, since: content.profilSince,
+            profil,
           });
           record.bilan.report = report;
           record.bilan.controlDueAt = report.controlDueAt;

@@ -51,10 +51,10 @@ export async function render(root, { repo, content, navigate, params }) {
   let report = s.bilan.report;
   if (!report) {
     const [sessions, recordings, measures] = await Promise.all([repo.listSessions(), repo.listRecordings(), repo.listMeasures()]);
-    const mine = (rows) => ofProfil(rows, content.profil, content.profilSince);
+    const mine = (rows) => ofProfil(rows, content.profil);
     report = buildBilanReport({
       session: s, sessions, recordings: mine(recordings), measures: mine(measures), todayKey: s.dateKey, lines: content.mesure ?? {},
-      profil: content.profil, since: content.profilSince,
+      profil: content.profil,
     });
   }
   // Louarn : une bulle sobre, seulement s'il a une réplique de bilan (G §2.2) ; sinon il se tait.

@@ -6,7 +6,8 @@ import { ofProfil } from '../../core/profil.js';
 import { dailyCount } from '../../core/progress.js';
 import { voiceJalonTag, calibrationRemaining, sessionsUntilControl, abPair } from '../../core/voice-plan.js';
 import {
-  stagesFor, sessionCounts, souvenirs, endCelebration, stablePick, pickLine, rememberLine, stageFor, humeurFor,
+  stagesFor, sessionCounts, souvenirs, endCelebration, stablePick, pickLine, rememberLine, humeurFor,
+  displayedStage, nextStadeMax, mergeSouvenirs, memoSouvenirs,
 } from '../../core/louarn.js';
 import { createPlayer } from '../../audio/player.js';
 import { createCompare } from '../components/compare.js';
@@ -20,21 +21,32 @@ import { createMiniSentier } from '../components/parcours.js';
  */
 async function louarnEnd({ repo, content, s, sessions, recs, voiceRecs }) {
   const fallback = s.completed ? variant(textsFor(content.profil).FIN, s.sessionNumber ?? 0) : FIN_PARTIELLE;
+  // Stades : le cumul de toutes les séances, jamais sous le plus haut atteint (meta louarn.stadeMax).
+  // Thèmes, blocs et mini-sentier : les séances du programme du profil (relecture du 12/10).
   const counts = sessionCounts(sessions, s);
+  const prog = sessionCounts(ofProfil(sessions, content.profil), s);
   const goal = programGoal(content.program);
-  const stage = stageFor(counts.newCount, goal).id;
-  const [discret, fetes, vus, jour] = await Promise.all([
+  const [discret, fetes, vus, jour, stadeMax, stored] = await Promise.all([
     repo.getMeta('renardDiscret', false), repo.getMeta('louarn.fetes', []),
     repo.getMeta('louarn.vus', []), repo.getMeta('louarn.jour', {}),
+    repo.getMeta('louarn.stadeMax', 0), repo.getMeta('louarn.souvenirs', []),
   ]);
+  const stage = displayedStage({ total: counts.newCount, goal, stadeMax }).stage.id;
+  // Un souvenir obtenu ne se perd jamais : ceux mémorisés s'ajoutent aux recalculés.
+  const obtained = mergeSouvenirs(stored, souvenirs(sessions, recs, { goal, profil: content.profil }), { profil: content.profil });
   const c = endCelebration({
-    ...counts, session: s, souvenirs: souvenirs(sessions, recs, { goal, profil: content.profil }), fetes: fetes ?? [],
+    prevCount: prog.prevCount, newCount: prog.newCount, stagePrev: counts.prevCount, stageNew: counts.newCount, stadeMax,
+    encoreUne: counts.encoreUne, session: s, souvenirs: obtained, fetes: fetes ?? [],
     todayKey: dayKey(Date.now()), hour: new Date().getHours(), discret, jalon: voiceJalonTag(s, voiceRecs),
     sessionsPerWeek: content.program.sessionsPerWeek ?? 4, weeks: content.program.weeks.length, profil: content.profil,
   });
   const lines = content.louarn?.repliques ?? [];
   const writes = [];
   if (c.fetes.length !== (fetes ?? []).length) writes.push(repo.setMeta('louarn.fetes', c.fetes));
+  const max = nextStadeMax(stadeMax, counts.newCount, goal);
+  if (max !== stadeMax) writes.push(repo.setMeta('louarn.stadeMax', max));
+  const memo = memoSouvenirs(obtained);
+  if (JSON.stringify(memo) !== JSON.stringify(stored ?? [])) writes.push(repo.setMeta('louarn.souvenirs', memo));
 
   let seen = vus ?? [];
   let texte = null;
@@ -73,7 +85,7 @@ async function louarnEnd({ repo, content, s, sessions, recs, voiceRecs }) {
       h('span', {}, 'Nouveau souvenir : ', h('strong', {}, sv.nom))));
   }
   if (c.next) nodes.push(h('p', { class: 'lo-suite muted' }, `Prochain : ${c.next.stage.nom}, dans ${plural(c.next.remaining, 'séance')}`));
-  if (c.miniSentier) nodes.push(createMiniSentier({ dailyCount: counts.newCount, program: content.program, animate: !discret }));
+  if (c.miniSentier) nodes.push(createMiniSentier({ dailyCount: prog.newCount, program: content.program, animate: !discret }));
   return nodes;
 }
 
@@ -82,8 +94,8 @@ export async function render(root, { repo, content, navigate, params }) {
   if (!s) { navigate('/home'); return; }
   const [recs, sessions] = await Promise.all([repo.listRecordings(), repo.listSessions()]);
   const mine = recs.filter((r) => r.sessionId === s.id);
-  // La mesure de la voix est propre au profil, depuis le dernier changement ; les souvenirs, eux, ne se perdent pas.
-  const voiceRecs = ofProfil(recs, content.profil, content.profilSince);
+  // La mesure de la voix est propre au profil (un profil déjà utilisé la retrouve) ; les souvenirs, eux, ne se perdent pas.
+  const voiceRecs = ofProfil(recs, content.profil);
   const cleanups = [];
   let louarn;
   try {
@@ -106,7 +118,7 @@ export async function render(root, { repo, content, navigate, params }) {
     const validTakes = mine.filter((r) => r.kind === 'reference' && r.voiceCheck).length;
     children.push(h('p', { class: 'milestone' }, voiceEndMessage({
       voiceCheck: s.voiceCheck, validTakes, calibrationRemaining: calibrationRemaining(voiceRecs),
-      untilControl: sessionsUntilControl(voiceRecs, dailyCount(sessions)),
+      untilControl: sessionsUntilControl(voiceRecs, dailyCount(ofProfil(sessions, content.profil))),
     })));
     const pair = s.voiceCheck === 'controle' && validTakes >= 2 ? abPair(voiceRecs) : null;
     if (pair) {

@@ -2,7 +2,7 @@
 // Profils Études et Quotidien : 12 pierres sur 2 blocs, nommés par le programme (program.blocs).
 // Sentier en HTML (listes ordonnées) plutôt qu'en SVG : lisible au lecteur d'écran, lacets en CSS (louarn.css).
 import { h } from '../dom.js';
-import { BLOCS, SESSIONS_PER_THEME, THEMES_PER_BLOC, THEMES_PER_CYCLE, stageFor, nextStage, themePosition } from '../../core/louarn.js';
+import { BLOCS, SESSIONS_PER_THEME, THEMES_PER_BLOC, THEMES_PER_CYCLE, displayedStage, themePosition } from '../../core/louarn.js';
 import { createFox, reducedMotion } from './fox.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -69,15 +69,15 @@ function stone({ theme, nom, state, louarn, doneInTheme, spw, draw = false, glid
 
 /**
  * Le Parcours, en tête de l'écran Progression.
- * dailyCount : séances comptées ; program : content/program.json ; souvenirs : louarn.souvenirs() (obtenus seulement) ;
+ * dailyCount : séances comptées du programme du profil (les pierres, « x séances sur 48 ») ; total : toutes les
+ * séances, pour le stade de Louarn, qui ne redescend jamais sous stadeMax ; program : content/program*.json ; souvenirs : louarn.souvenirs() (obtenus seulement) ;
  * lines (facultatif) : répliques de louarn.json, pour la légende de chaque souvenir.
  */
-export function createParcours({ dailyCount = 0, program, souvenirs = [], lines = null } = {}) {
+export function createParcours({ dailyCount = 0, total = dailyCount, stadeMax = 0, program, souvenirs = [], lines = null } = {}) {
   const { spw, weeks, name } = shape(program);
   const goal = spw * weeks;
   const n = Math.max(0, Math.floor(Number(dailyCount) || 0));
-  const stage = stageFor(n, goal);
-  const next = nextStage(n, goal);
+  const { stage, next } = displayedStage({ total, goal, stadeMax });
   const { pos, states, here } = stoneStates(n, spw, weeks);
 
   const head = h('div', { class: 'lo-parcours-tete' },
